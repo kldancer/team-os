@@ -3,7 +3,8 @@ projectId: jusuan-platform
 dependencyDirection: team-os-to-project
 projectStandalone: true
 bulkMigrationAllowed: false
-deletionBeforeTos4: false
+shortTermEvalRequiredForDedupe: false
+workflowDirection: forward-only
 
 retain:
   - id: project-execution-kernel
@@ -44,14 +45,14 @@ dedupeAfter:
   - id: generic-collaboration-prose
     candidates: [docs/平台开发联调部署规范.md#2.2, docs/平台开发联调部署规范.md#2.3, docs/平台开发联调部署规范.md#5]
     preserve: [project-model-restrictions, real-task-definition, project-machine-routing]
-    gates: [tos3-context-preview, direct-codex-fallback, tos4-no-quality-regression]
+    gates: [tos3-context-preview, team-os-authority-established]
   - id: generic-process-skills
     candidates: [deliver-change, design, diagnose, review, ship-changes]
     preserve: [project-overlays, guard, refresh, smoke, prod-env, console-ui, offline-assets]
-    gates: [versioned-skill-distribution, project-standalone-fallback, tos4-no-quality-regression]
+    gates: [versioned-skill-distribution]
 
 forbiddenActions:
   - copy-project-authority-into-team-os
   - replace-project-agents-with-personal-absolute-link
   - move-machine-gates-or-production-facts
-  - delete-project-fallback-before-tos4
+  - delete-active-project-skill-before-team-os-distribution

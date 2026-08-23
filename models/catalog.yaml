@@ -4,20 +4,20 @@ policy: advisory-only
 baseline:
   vendor: OpenAI
   models: [gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna]
-  purpose: Sol 负责复杂结果与综合，Terra/Luna 只做经 eval 证明的成本和吞吐分层
+  purpose: Sol 负责复杂结果与综合，Terra/Luna 只做经真实任务证明有效的成本和吞吐分层
 candidates:
   - id: google-gemini
     models: [gemini-3.7-flash, gemini-cli-auto]
     intendedRoles: [multimodal-scout, long-context-evidence-researcher]
     distinctChannels: [native-multimodal, million-token-context, independent-model-family]
     munderTransport: existing-official-cli-bridge
-    admission: model-role-eval-required
+    admission: real-task-evidence-required
   - id: deepseek-v4
     models: [deepseek-v4-pro, deepseek-v4-flash]
     intendedRoles: [independent-reasoning-reviewer, cost-sensitive-batch-specialist]
     distinctChannels: [independent-model-family, open-weights-option, million-token-context]
     munderTransport: existing-opencode-bridge
-    admission: model-role-eval-required
+    admission: real-task-evidence-required
   - id: xai-grok
     models: [grok-4.6]
     intendedRoles: [freshness-researcher, open-world-challenger, interactive-prototype-reviewer]
