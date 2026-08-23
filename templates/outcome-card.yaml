@@ -1,4 +1,4 @@
-version: 1
+version: 3
 id: example-outcome
 title: 示例结果
 projectId: example-project
@@ -6,6 +6,23 @@ status: intake
 owner: unassigned
 outcome: 清楚描述用户最终可以验证的结果
 nonGoals: []
+task:
+  class: general
+  risk: low
+  sequential: true
+  evidenceDiversity: low
+coordination:
+  topology: solo
+  rationale: 默认由单一负责人保持上下文连续
+  participants: []
+  independentFirst: false
+  handoffBudget: 0
+delivery:
+  valueSlice: null
+  technicalDependencies: []
+  requiredCapabilities: []
+  capabilityGaps: []
+  dedicatedSpecialists: []
 scope:
   read: []
   write: []
@@ -18,5 +35,11 @@ dependencies: []
 acceptance: []
 validation: []
 evidence: []
+unknowns: []
+budget:
+  targetMinutes: null
+  hardStopMinutes: null
+huddleTriggers: []
+debriefRequired: false
 decisionNeeded: null
 stopConditions: []

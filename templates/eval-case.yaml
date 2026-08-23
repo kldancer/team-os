@@ -1,0 +1,32 @@
+version: 1
+id: example-case
+taskClass: general
+frozenInputRef: null
+goldEvidenceRef: null
+risk: low
+variants:
+  - id: solo-baseline
+    topology: solo
+    modelPolicy: primary-baseline
+rubric:
+  requiredOutcomes: []
+  forbiddenOutcomes: []
+  evidenceRequirements: []
+measure:
+  - success
+  - severeMisses
+  - firstDiscriminatingFactMinutes
+  - leadTimeMinutes
+  - reworkMinutes
+  - userInterventions
+  - inputTokens
+  - outputTokens
+  - coordinationTokens
+  - duplicateReads
+  - uniqueEvidenceAdopted
+  - handoffs
+  - handoffWaitMinutes
+  - escapedDefects
+  - valueSliceComplete
+  - rollbackReady
+notes: 不连接生产写入口，不包含密钥、真实 Session 或完整 Transcript

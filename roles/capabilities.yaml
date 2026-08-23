@@ -1,0 +1,105 @@
+version: 2
+concepts:
+  organizationalRole: 稳定责任、权限和完成责任
+  capabilityProfile: 可叠加的专业知识、工具和验收方法
+  persona: Munder 中便于用户识别的长期人物形象
+  agentInstance: 本次实际运行的 Provider、Session、PTY 和工作目录
+roles:
+  - id: chief-of-staff
+    label: 总协调/参谋长
+    capabilities: [intake, scope, dependency-map, topology-selection, progress-synthesis]
+    authority: coordination-only
+    writePolicy: outcome-card-only
+    knownBlindSpots: [must-not-replace-domain-owner, can-become-synthesis-bottleneck]
+  - id: product-architect
+    label: 产品与架构
+    capabilities: [intent-modeling, boundary-design, alternatives, contract-design]
+    authority: advisory-until-user-or-project-contract
+    writePolicy: assigned-design-scope
+    knownBlindSpots: [may-prematurely-formalize-uncertain-facts]
+  - id: delivery-engineer
+    label: 端到端交付/Feature Owner
+    capabilities: [vertical-slice-ownership, implementation, local-validation, integration, documentation-convergence]
+    authority: assigned-local-write
+    writePolicy: single-writer
+    knownBlindSpots: [may-overfit-to-current-implementation, must-request-capability-gap-help]
+  - id: evidence-researcher
+    label: 事实研究
+    capabilities: [source-discovery, long-context-analysis, multimodal-analysis, evidence-comparison]
+    authority: read-only
+    writePolicy: evidence-artifacts-only
+    knownBlindSpots: [source-quality-varies, freshness-requires-tools]
+  - id: quality-verifier
+    label: 质量验证
+    capabilities: [falsification, regression-design, acceptance-check, evidence-audit]
+    authority: independent-read-and-run
+    writePolicy: receipts-only
+    knownBlindSpots: [cannot-redefine-product-intent, must-not-fix-under-test]
+  - id: release-operator
+    label: 发布与运行
+    capabilities: [preflight, rollout, rollback, runtime-verification]
+    authority: explicit-external-write-only
+    writePolicy: single-writer
+    knownBlindSpots: [runtime-fact-does-not-override-product-contract]
+  - id: independent-challenger
+    label: 独立挑战者
+    capabilities: [counterexample, alternative-hypothesis, hidden-risk, assumption-audit]
+    authority: read-only
+    writePolicy: findings-only
+    knownBlindSpots: [must-provide-new-evidence-not-generic-disagreement]
+capabilityProfiles:
+  - id: product-discovery
+    label: 产品发现
+    activationSignals: [unclear-user-value, competing-workflows, acceptance-uncertain]
+    evidence: [user-outcome, workflow, acceptance-contract]
+    defaultMode: overlay
+  - id: ux-interaction
+    label: UX 与交互
+    activationSignals: [multi-step-flow, navigation-change, permission-or-error-states]
+    evidence: [task-flow, information-architecture, interaction-states, accessibility-intent]
+    defaultMode: overlay
+  - id: visual-design
+    label: 视觉设计
+    activationSignals: [new-visual-language, design-system-change, theme-or-character-art]
+    evidence: [visual-spec, token-or-asset-contract, reference-render]
+    defaultMode: overlay
+  - id: frontend-engineering
+    label: 前端工程
+    activationSignals: [browser-or-electron-ui, client-state, responsive-or-accessibility-risk]
+    evidence: [component-contract, browser-fact, console-and-network-fact]
+    defaultMode: overlay
+  - id: backend-domain
+    label: 后端与领域工程
+    activationSignals: [api-contract, domain-ownership, async-or-failure-semantics]
+    evidence: [api-contract, state-transition, failure-and-recovery-contract]
+    defaultMode: overlay
+  - id: data-migration
+    label: 数据与迁移
+    activationSignals: [schema-change, backfill, compatibility-or-rollback-risk]
+    evidence: [migration-plan, compatibility-proof, rollback-proof]
+    defaultMode: specialist-on-medium-or-high-risk
+  - id: security-engineering
+    label: 安全工程
+    activationSignals: [authn-or-authz, secrets, untrusted-input, privilege-boundary]
+    evidence: [threat-boundary, negative-cases, least-privilege-proof]
+    defaultMode: specialist-on-medium-or-high-risk
+  - id: test-engineering
+    label: 测试工程
+    activationSignals: [regression-risk, nondeterminism, cross-boundary-acceptance]
+    evidence: [falsifiable-case, regression-boundary, independent-receipt]
+    defaultMode: independent-verifier-on-high-risk
+  - id: sre-observability
+    label: SRE 与可观测性
+    activationSignals: [deployment, runtime-dependency, telemetry-or-rollback]
+    evidence: [preflight, runtime-fact, rollback-and-observability-proof]
+    defaultMode: specialist-on-external-write
+specialistInstantiation:
+  requiredEvidence:
+    - distinct-knowledge-or-tool-channel
+    - clear-capability-gap
+  additionalSignals:
+    - independently-testable-output
+    - separable-write-set
+    - medium-or-high-risk
+    - recurring-project-demand
+  rule: 名称或空闲 Agent 数量不能单独触发专职实例
