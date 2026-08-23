@@ -1,0 +1,23 @@
+version: 1
+id: jusuan-platform
+name: 聚算平台总控工程
+root: /Users/kailonyang/go/src/jusuan-installer
+mode: read-only
+authority:
+  agents: AGENTS.md
+  workflow: docs/平台开发联调部署规范.md
+  designIndex: docs/README.md
+  designGovernance: docs/设计文档管理规范.md
+  production: docs/正式设计文档/25-生产变更兼容性发布与真实入口验收设计.md
+machine:
+  planner: ./juspctl
+  workspaces: .agents/config/workspaces.json
+  gates: .agents/config/gates.json
+evidence:
+  taskStore: .work/tasks
+  gateReceipts: .work/gates
+constraints:
+  copyAuthorityDocuments: false
+  allowRuntimeWrite: false
+  allowProductionWrite: false
+  allowGitMutation: false

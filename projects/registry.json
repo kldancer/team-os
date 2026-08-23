@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "id": "jusuan-platform",
+      "name": "聚算平台总控工程",
+      "adapter": "projects/adapters/jusuan-installer.yaml",
+      "enabled": true
+    }
+  ]
+}

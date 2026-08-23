@@ -1,0 +1,22 @@
+version: 1
+id: example-outcome
+title: 示例结果
+projectId: example-project
+status: intake
+owner: unassigned
+outcome: 清楚描述用户最终可以验证的结果
+nonGoals: []
+scope:
+  read: []
+  write: []
+  excluded: []
+authorization:
+  localWrite: false
+  remoteWrite: false
+  destructive: false
+dependencies: []
+acceptance: []
+validation: []
+evidence: []
+decisionNeeded: null
+stopConditions: []
