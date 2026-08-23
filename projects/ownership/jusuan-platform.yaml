@@ -1,0 +1,57 @@
+version: 1
+projectId: jusuan-platform
+dependencyDirection: team-os-to-project
+projectStandalone: true
+bulkMigrationAllowed: false
+deletionBeforeTos4: false
+
+retain:
+  - id: project-execution-kernel
+    paths: [AGENTS.md]
+    owns: [project-safety, authorization, authority-routing, completion-boundary]
+  - id: machine-planning-and-gates
+    paths: [juspctl, .agents/config]
+    owns: [changed-path-planning, command-selection, workspace-registry, gate-contracts]
+  - id: platform-workflow
+    paths: [docs/平台开发联调部署规范.md]
+    owns: [business-and-implementation-chain, async-state-surface, production-feedback-loop, project-real-entry]
+  - id: project-design-and-production
+    paths: [docs/正式设计文档, docs/业务链路, docs/生产环境建设, docs/design]
+    owns: [platform-product-contract, project-failure-semantics, production-facts, service-internals]
+  - id: project-executable-skills
+    paths: [.agents/skills]
+    owns: [project-process-entry, domain-overlays, gate-and-runtime-executors]
+
+extracted:
+  - id: collaboration-topology
+    projectSources: [docs/平台开发联调部署规范.md#5]
+    teamOsTargets: [AGENTS.md, workflows/adaptive-collaboration.md]
+    projectAction: retain-specific-overlay
+  - id: model-selection-and-eval
+    projectSources: [docs/平台开发联调部署规范.md#2.2, docs/平台开发联调部署规范.md#2.3]
+    teamOsTargets: [models/README.md, models/catalog.yaml, evals/README.md, templates/eval-case.yaml]
+    projectAction: retain-machine-and-provider-constraints
+  - id: outcome-and-timebox
+    projectSources: [docs/平台开发联调部署规范.md#3.3]
+    teamOsTargets: [templates/outcome-card.yaml, organization/operating-model.md]
+    projectAction: retain-project-time-budgets
+  - id: roles-and-capability-gaps
+    projectSources: [.agents/skills]
+    teamOsTargets: [roles/capabilities.yaml, roles/README.md]
+    projectAction: retain-executable-skills
+
+dedupeAfter:
+  - id: generic-collaboration-prose
+    candidates: [docs/平台开发联调部署规范.md#2.2, docs/平台开发联调部署规范.md#2.3, docs/平台开发联调部署规范.md#5]
+    preserve: [project-model-restrictions, real-task-definition, project-machine-routing]
+    gates: [tos3-context-preview, direct-codex-fallback, tos4-no-quality-regression]
+  - id: generic-process-skills
+    candidates: [deliver-change, design, diagnose, review, ship-changes]
+    preserve: [project-overlays, guard, refresh, smoke, prod-env, console-ui, offline-assets]
+    gates: [versioned-skill-distribution, project-standalone-fallback, tos4-no-quality-regression]
+
+forbiddenActions:
+  - copy-project-authority-into-team-os
+  - replace-project-agents-with-personal-absolute-link
+  - move-machine-gates-or-production-facts
+  - delete-project-fallback-before-tos4
