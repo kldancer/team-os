@@ -31,3 +31,5 @@ intake → ready → doing → verifying → done
 交接只传递：目标与当前状态、已作决策及理由、变更路径、验证命令与结果、证据引用、未决风险、下一步和停止条件。不得用完整聊天记录代替交接，也不得在交接中包含密钥或 Provider 认证内容。
 
 具体项目的命令、Gate、并发上限、生产分波与提交方式不在这里定义，必须从项目适配器指向的项目权威读取。
+
+默认的人机入口和 Plan Manifest 协议见 [对话式规划与确定性组织](conversational-orchestration.md)。
