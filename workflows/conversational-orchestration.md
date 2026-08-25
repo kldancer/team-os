@@ -1,58 +1,69 @@
-# 对话式规划与确定性组织
+# 对话式规划与 Codex 原生组织
 
 ## 1. 用户入口
 
-日常工作不从空白任务表开始。用户先在 Michael 当前 Provider Thread/Session 中讨论想法、方案和取舍；普通消息只属于讨论，不创建任务或 Agent。只有用户明确发送或点击“按结论开始推进”时，才建立一次可持久恢复的规划请求。
+日常工作继续使用 Codex 原生客户端。用户先在同一个任务中讨论想法、方案和取舍；普通讨论不要求填写任务表，也不自动创建协作任务。用户明确说“按结论开始推进”后，当前会话把已经讨论清楚的结论编译成一个结果合同并直接推进。
 
-该意图只授予所选项目适配器允许的本地分析、实现、文档和适用验证。Git、远端、生产、破坏性操作和数据删除始终关闭；需要这些能力时必须进入等待用户，不能继承本地开始意图。
+讨论结论随后要实施时，默认形成一份覆盖型实施规划，而不是先写结论记录再复制一份规划。长期产品合同直接进入项目正式设计；实施规划保留本次决策基线、场景/失败面覆盖、DAG、保护和运行验收映射。
 
-## 2. 单一判断者与确定性执行者
+该表达只改变“讨论 → 实施”的阶段，不扩大权限。它可以覆盖当前项目内的本地实现、文档和适用验证；Git、远端、生产、破坏性操作和数据删除仍按用户授权与项目合同处理。
 
-Michael 在同一个 Provider Session 中保留讨论结论，并负责：
+## 2. 当前会话是结果负责人
 
-1. 选择适用项目与最小 workspace 集；
-2. 实际读取项目 `AGENTS.md`、工作流规范、相关正式设计和机器计划；
-3. 定义结果、非目标、验收、DAG、角色、能力、写集合和止损；
-4. 默认保持一个端到端 owner，只在独立验收、互补证据或互斥写集合覆盖协调成本时增加 Lane；
-5. 提交结构化 Plan Manifest，并在系统返回校验错误时自行修正；Codex native 使用同一 Thread 的 `outputSchema` planning Turn，PTY compatibility 使用有界文件提交；
-6. 继续承担跨 Lane 综合、Gate 判断和用户汇报。
+当前 Codex 会话负责：
 
-Munder Main Process 不读取 Transcript 重新推理，也不调用第二个模型。它只校验项目、workspace、角色/能力、DAG、写冲突、并发和授权，然后复用 Hive task、Inbox、Agent 与 Provider Runtime/Thread/Session 原语执行。
+1. 识别平台总控仓库和最小目标 workspace；
+2. 读取项目 `AGENTS.md`、实施规范、相关正式设计和机器计划；
+3. 从已有讨论收敛结果、非目标、读写集合、验收、预算和停止条件；
+4. 默认端到端独立完成，只在互补证据、互斥写集合或高风险独立验证足以覆盖协调成本时创建真实独立任务；
+5. 为协作任务声明目标、非目标、输入、写集合、禁止修改、验证、预算以及完成/停止条件；
+6. 维护依赖 DAG、单一写入责任、跨 Lane Gate 和最终综合。
 
-## 3. Plan Manifest 合同
+复杂模块、跨服务结果或两个以上独立证据域必须在实施前显式报告 `solo` 或推荐的独立任务数量。这里的独立任务是 Codex 侧栏可见、拥有独立 Session 的真实任务，不是隐藏子智能体；当前 Sol 主任务综合，独立任务按用户基线使用 Luna 的适用档位。
+
+这不是常驻的“总管 Agent”，也不要求用户预先分配前端、后端或测试。角色是当前任务中的职责，专业能力按事实缺口加载。
+
+## 3. 最小结果合同
 
 ```text
-version, requestId, projectId
-outcome, nonGoals
-authorization: localWrite + 固定关闭的 git/remote/production/destructive
-tasks[]:
-  id, title, objective
-  roleId, capabilityProfileIds, workspaceKey, cwd
-  dependsOn, read, write
-  acceptance, validation, stopConditions
-  targetMinutes, hardStopMinutes
-gates[]: id, label, taskIds, evidence
+outcome: 用户最终能验证什么
+nonGoals: 本次明确不做什么
+authority: 需要读取的项目权威
+ownerRole + capabilityProfileIds
+scope: read / write / excluded
+acceptance + validation
+budget: target / hardStop
+stopConditions
+topology: solo 或最小协作拓扑
 ```
 
-- 最多 12 个任务、12 个 Gate、6 条并发 Lane；Plan 文件最大 128 KiB；
-- workspace 和 cwd 来自项目适配器指向的权威 registry，不能猜测绝对路径；
-- 并行任务写集合必须互斥；同一写集合用依赖串行化；
-- 计划不保存权威正文、Transcript、Key、真实秘密或长日志；
-- 任务工作合同采用 `OBJECTIVE / CONTEXT / CONSTRAINTS / DONE WHEN` 四段闭环。
+结果合同通常保留在当前任务上下文；项目已有机器任务状态时，只把可验证字段投影到项目 `.work`。不为普通任务复制完整 Transcript，不在 Team OS 建中央任务数据库。
 
-## 4. 角色实例与 Session
+用户明确要求 Codex goal 时，一个 outcome 只建立一个 goal；它只是持续推进容器，不替代覆盖型实施规划、项目机器任务或验收证据，重规划和批量修复不得重复建 goal。
+
+## 4. 协作任务与 Session
 
 | 场景 | 策略 |
 | --- | --- |
-| 同一计划中的串行后续 | 复用同一 Agent 实例与当前 Thread/Session |
-| 空闲角色接收无关新计划 | 保留工牌、信箱和长期记忆，切换为新 Thread/Session |
-| 同角色并行 Lane | 创建第二实例、独立 Provider Runtime、独立活动 Thread/Session 和信箱 |
-| 任务结束 | 保留可恢复事实，不因完成删除 Thread/Session 或长期记忆 |
+| 同一结果中的连续工作 | 复用当前 Codex 任务，保持上下文连续 |
+| 独立只读证据 | 创建有界独立任务，首轮不共享候选结论 |
+| 写集合互斥且分别可验收 | 创建独立任务并声明各自写集合，一次集成 |
+| 高风险实现 | 单写负责人完成候选，独立验证者只写证据 |
+| 无关的新结果 | 新建 Codex 任务；角色名称不要求新增长期人物 |
 
-`cwd` 是启动位置和上下文锚点。Codex native 还以项目/worktree 与该 Agent Hive 目录组成精确 writable roots；PTY Provider 的跨仓读写仍必须出现在 Plan scope 中，并服从本机权限和项目合同。
+`cwd` 是启动位置和项目指令发现锚点，不是访问权限本身。实际可读写范围由 Codex 权限、用户授权、项目合同和任务写集合共同约束。
 
-## 5. 状态与恢复
+## 5. 意图路由
 
-用户默认只需理解：规划中、执行中、验证中、等待你、完成。内部可保留 ready、blocked、failed、stopped 以解释失败和恢复。
+| 输入 | 处理方式 |
+| --- | --- |
+| “排查/分析为什么” | 只读可证伪诊断 |
+| “定位并整改/修复” | 同一诊断任务完成复现、根因保护、最小修复和目标验证 |
+| “设计/规划新模块” | 只形成产品合同和覆盖型实施规划，不默认写实现 |
+| “按以上结论开始推进” | 当前结果负责人读取项目权威后直接端到端交付 |
 
-Plan、任务分配和阶段写入当前办公室 `harnessHome/.work/team-os/plans/<requestId>/`；应用重启后从该状态、Hive 任务账本、Registry 和 Provider Thread/Session 索引恢复，不从终端输出或文件时间猜测。Team OS/项目 registry 无效时，自动规划显式失败，但基础终端、Agent 和 Hive 继续可用。
+诊断任务不需要结论文档或 program 规划；大模块也不能以一串 quick-fix 绕过场景和 failure-surface 覆盖。首次运行态验证后发现的同一 outcome 遗漏回到原任务和原规划 revision，本地成批闭合后再生成一个冻结候选。
+
+## 6. 状态、证据与恢复
+
+用户只需理解：讨论中、执行中、验证中、等待你、完成。Codex Session 保存短期连续性；项目 `.work` 保存动态收据；正式设计保存长期合同；Team OS 只保存跨项目稳定方法。恢复时先读当前任务和项目机器状态，不从终端输出、文件时间或人物记忆猜测进度。

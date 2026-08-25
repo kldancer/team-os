@@ -1,6 +1,6 @@
 version: 1
 reviewedAt: 2026-08-23
-policy: advisory-only
+policy: advisory-research-only
 baseline:
   vendor: OpenAI
   models: [gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna]
@@ -10,35 +10,39 @@ candidates:
     models: [gemini-3.7-flash, gemini-cli-auto]
     intendedRoles: [multimodal-scout, long-context-evidence-researcher]
     distinctChannels: [native-multimodal, million-token-context, independent-model-family]
-    munderTransport: existing-official-cli-bridge
+    runtimeStatus: not-installed-by-team-os
     admission: real-task-evidence-required
   - id: deepseek-v4
     models: [deepseek-v4-pro, deepseek-v4-flash]
     intendedRoles: [independent-reasoning-reviewer, cost-sensitive-batch-specialist]
     distinctChannels: [independent-model-family, open-weights-option, million-token-context]
-    munderTransport: existing-opencode-bridge
+    runtimeStatus: not-installed-by-team-os
     admission: real-task-evidence-required
   - id: xai-grok
     models: [grok-4.6]
     intendedRoles: [freshness-researcher, open-world-challenger, interactive-prototype-reviewer]
     distinctChannels: [web-search, x-search, independent-model-family]
-    munderTransport: existing-grok-hook-bridge-needs-current-real-run
+    runtimeStatus: not-installed-by-team-os
     admission: highest-priority-new-pilot
   - id: moonshot-kimi
     models: [kimi-code/k3]
     intendedRoles: [chinese-knowledge-worker, long-document-analyst, multimodal-office-specialist]
     distinctChannels: [native-chinese, native-multimodal, million-token-context, independent-model-family]
-    munderTransport: provider-exists-hook-bridge-update-required
+    runtimeStatus: not-installed-by-team-os
     admission: second-priority-new-pilot
   - id: alibaba-qwen
     models: [qwen3-coder-plus, qwen3-coder-open-weight-family]
     intendedRoles: [chinese-coding-specialist, open-model-backup, local-private-experiment]
     distinctChannels: [chinese-code-ecosystem, separate-open-weight-deployment-option, independent-model-family]
-    munderTransport: provider-exists-current-proxy-contract-stale
+    runtimeStatus: not-installed-by-team-os
     admission: conditional-pilot-after-overlap-review
 excluded:
   - vendor: Anthropic
     reason: user-requested-exclusion
+activeRuntime:
+  client: Codex
+  provider: OpenAI
+  policy: no-silent-provider-routing
 deferred:
   - group: additional-frontier-models
-    reason: no-proven-unique-channel-or-stable-munder-transport-yet
+    reason: no-proven-unique-channel-or-stable-codex-native-runtime-yet

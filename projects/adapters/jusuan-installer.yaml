@@ -18,8 +18,8 @@ evidence:
   gateReceipts: .work/gates
 constraints:
   copyAuthorityDocuments: false
-  # 只有用户在同一 Michael Session 中明确触发“按结论开始推进”后，
-  # 才允许 Plan Manifest 申请项目内本地实现/文档/适用测试；不含 Git/远端/生产。
+  # 只有用户在当前 Codex 任务中明确触发“按结论开始推进”后，
+  # 才允许结果合同申请项目内本地实现、文档与适用验证；不含 Git、远端和生产。
   allowRuntimeWrite: true
   allowProductionWrite: false
   allowGitMutation: false

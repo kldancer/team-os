@@ -5,6 +5,10 @@ projectStandalone: true
 bulkMigrationAllowed: false
 shortTermEvalRequiredForDedupe: false
 workflowDirection: forward-only
+codexProjection:
+  source: codex
+  installer: scripts/install_codex.py
+  projectRemainsStandalone: true
 
 retain:
   - id: project-execution-kernel
@@ -45,11 +49,11 @@ dedupeAfter:
   - id: generic-collaboration-prose
     candidates: [docs/平台开发联调部署规范.md#2.2, docs/平台开发联调部署规范.md#2.3, docs/平台开发联调部署规范.md#5]
     preserve: [project-model-restrictions, real-task-definition, project-machine-routing]
-    gates: [tos3-context-preview, team-os-authority-established]
+    gates: [codex-projection-verified, project-standalone-contract]
   - id: generic-process-skills
     candidates: [deliver-change, design, diagnose, review, ship-changes]
     preserve: [project-overlays, guard, refresh, smoke, prod-env, console-ui, offline-assets]
-    gates: [versioned-skill-distribution]
+    gates: [codex-skill-validation, project-machine-entry-preserved]
 
 forbiddenActions:
   - copy-project-authority-into-team-os

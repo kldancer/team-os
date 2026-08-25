@@ -2,8 +2,8 @@ version: 2
 concepts:
   organizationalRole: 稳定责任、权限和完成责任
   capabilityProfile: 可叠加的专业知识、工具和验收方法
-  persona: Munder 中便于用户识别的长期人物形象
-  agentInstance: 本次实际运行的 Provider、Session、PTY 和工作目录
+  persona: 任意客户端中便于用户识别的可选人物形象
+  agentInstance: 本次实际运行的 Codex 任务或会话、工作目录和运行状态
 roles:
   - id: chief-of-staff
     label: 总协调/参谋长
