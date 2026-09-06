@@ -3,8 +3,8 @@ reviewedAt: 2026-08-23
 policy: advisory-research-only
 baseline:
   vendor: OpenAI
-  models: [gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna]
-  purpose: Sol 负责复杂结果与综合，Terra/Luna 只做经真实任务证明有效的成本和吞吐分层
+  models: [gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna]
+  purpose: 当前用户选择 Astra 负责复杂结果与综合；既有 5.6 模型保留为显式可选层，不自动切换模型或全员升级
 candidates:
   - id: google-gemini
     models: [gemini-3.7-flash, gemini-cli-auto]
