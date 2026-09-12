@@ -21,7 +21,7 @@ description: 用户说“按结论开始推进”，或复杂、跨仓任务需�
 
 Goal 只在用户明确要求时创建，并且一个 outcome 只对应一个；它用于长任务持续推进，不证明规划完整，也不因 plan revision、返工或刷新重复创建。
 
-先判定任务意图：已有症状的排查或“定位并修复”是同一个可证伪诊断闭环；新模块仅设计/规划与结论已定后实施不同。讨论已充分且随后实施时，优先维护一份含决策基线、场景/失败面、DAG 和验收映射的实施规划，不机械复制一份结论记录再二次翻译。需要新建时以 [`references/module-implementation-plan.md`](references/module-implementation-plan.md) 为最小骨架；项目若有更具体模板或要求 program 规划文档，使用项目合同并由其机器入口绑定原文和指纹。
+先判定任务意图：已有症状的排查或“定位并修复”是同一个可证伪诊断闭环；新模块仅设计/规划与结论已定后实施不同。复杂模块或跨边界结果才维护含决策基线、场景/失败面、DAG 和验收映射的实施规划；局部快修直接执行目标保护。需要新建时以 [`references/module-implementation-plan.md`](references/module-implementation-plan.md) 为最小骨架；项目若有更具体模板或要求 program 规划文档，使用项目合同并由其机器入口绑定原文和指纹。
 
 ## 再选最小拓扑
 
