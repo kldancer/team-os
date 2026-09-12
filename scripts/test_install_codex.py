@@ -47,6 +47,22 @@ class InstallCodexTest(unittest.TestCase):
                 / "module-implementation-plan.md"
             )
             self.assertIn("## 场景与业务链覆盖", module_template.read_text(encoding="utf-8"))
+            ui_reference = home / "skills/team-os-ui/references/ui-design-frontend.md"
+            self.assertEqual(
+                ui_reference.read_bytes(),
+                (SCRIPT.parents[1] / "workflows/ui-design-frontend.md").read_bytes(),
+            )
+            self.assertTrue((home / "skills/team-os-ui/SKILL.md").is_file())
+
+    def test_ui_reference_drift_is_detected_and_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw)
+            self.assertEqual(self.run_installer(home).returncode, 0)
+            target = home / "skills/team-os-ui/references/ui-design-frontend.md"
+            target.write_text("local UI rule\n", encoding="utf-8")
+            self.assertEqual(self.run_installer(home, "--check").returncode, 2)
+            self.assertEqual(self.run_installer(home).returncode, 2)
+            self.assertEqual(target.read_text(encoding="utf-8"), "local UI rule\n")
 
     def test_local_drift_is_never_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

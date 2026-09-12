@@ -22,6 +22,8 @@ FILES = {
     / "templates"
     / "module-implementation-plan.md",
     "skills/team-os-retrospective/SKILL.md": SOURCE_ROOT / "skills/team-os-retrospective/SKILL.md",
+    "skills/team-os-ui/SKILL.md": SOURCE_ROOT / "skills/team-os-ui/SKILL.md",
+    "skills/team-os-ui/references/ui-design-frontend.md": ROOT / "workflows/ui-design-frontend.md",
 }
 
 

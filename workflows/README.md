@@ -33,3 +33,5 @@ intake → ready → doing → verifying → done
 具体项目的命令、Gate、并发上限、生产分波与提交方式不在这里定义，必须从项目适配器指向的项目权威读取。
 
 默认的人机入口和 Codex 原生组织方式见 [对话式规划与 Codex 原生组织](conversational-orchestration.md)。
+
+UI 新设计、按稿还原和可见前端改动按需叠加 [UI 设计与前端交付工作流](ui-design-frontend.md)；它补设计基线与视觉证据，不增加流程所有者。

@@ -16,7 +16,7 @@
 3. 默认由当前会话端到端交付；只有独立证据、互斥写集合或高风险独立验证足以覆盖协调成本时才创建协作任务。
 4. 实现、验证和证据遵守项目覆盖层。提交、远端、生产和破坏性操作仍须由用户明确授权。
 
-安装到 Codex 的只是短内核和两个按需 Skill，完整 Team OS 文档不会自动塞入每个任务上下文。见 [`codex/README.md`](codex/README.md)。
+安装到 Codex 的只是短内核和按需 Skill，完整 Team OS 文档不会自动塞入每个任务上下文。见 [`codex/README.md`](codex/README.md)。UI 设计与前端交付的方法见 [`workflows/ui-design-frontend.md`](workflows/ui-design-frontend.md)，不替代项目的设计系统和交付流程。
 
 第一次使用或需要回顾整条链路时，先读图解式的 [`Codex + Team OS 日常工作流使用手册`](docs/使用手册/01-Codex-Team-OS日常工作流使用手册.md)。
 
