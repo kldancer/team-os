@@ -4,7 +4,7 @@
 
 ## 1. 先用一句话理解整套系统
 
-你仍然只在 **Codex Mac 客户端**里工作：先和当前主任务讨论（目前选择 Astra），满意后说“按结论开始推进”。Team OS 在背后提供跨项目稳定的协作方法，目标项目则提供业务事实、代码、Gate 和运行边界。
+本手册只描述 **Codex Mac 客户端**适配器；Pi/OMP 入口见 [`02-Pi-OMP-Team-OS日常工作流使用手册.md`](02-Pi-OMP-Team-OS日常工作流使用手册.md)。你仍然先和当前主任务讨论，满意后说“按结论开始推进”；具体模型由 Codex 用户配置显式选择，Team OS 不再写死模型名称。Team OS 在背后提供跨项目稳定的协作方法，目标项目则提供业务事实、代码、Gate 和运行边界。
 
 ```mermaid
 flowchart LR
@@ -257,9 +257,9 @@ flowchart LR
     SOLO["🚲 solo<br/>保持上下文连续"]
 
     subgraph FLEET["🚀 仅在收益覆盖协调成本时出动"]
-        L1["🔭 Luna A<br/>独立事实/方案首轮"]
-        L2["🛠️ Luna B<br/>互斥写集合的纵向结果"]
-        L3["🛡️ Luna C<br/>候选冻结后的独立验证"]
+        L1["🔭 独立任务 A<br/>独立事实/方案首轮"]
+        L2["🛠️ 独立任务 B<br/>互斥写集合的纵向结果"]
+        L3["🛡️ 独立任务 C<br/>候选冻结后的独立验证"]
     end
 
     MERGE["🧩 主任务一次综合<br/>复核范围 · 冲突 · 证据"]
@@ -279,19 +279,19 @@ flowchart LR
 
     classDef main fill:#e9e4ff,stroke:#7357c2,color:#2f2850,stroke-width:3px;
     classDef solo fill:#dcecff,stroke:#2b6cb0,color:#17365d;
-    classDef luna fill:#dcf7e8,stroke:#21865a,color:#123f2e;
+    classDef model fill:#dcf7e8,stroke:#21865a,color:#123f2e;
     classDef done fill:#d9f6d2,stroke:#36802d,color:#173f13,stroke-width:3px;
     classDef no fill:#ffe0e0,stroke:#c23b3b,color:#641f1f;
     class CAP,DEC,MERGE main;
     class SOLO solo;
-    class L1,L2,L3 luna;
+    class L1,L2,L3 model;
     class RESULT done;
     class NO no;
 ```
 
 需要真实会话协同时，可直接这样说：
 
-> 按结论开始推进。请先显式判断 `solo` 或推荐 N 个独立任务；如确有独立价值，请创建侧栏可见、拥有独立 Session、可单独验收的 GPT-5.6 Luna 任务，禁止使用隐藏子智能体代替。
+> 按结论开始推进。请用最短可验证路径端到端完成当前结果：先确认成功标准、非目标和授权，再读取会改变执行路径的项目事实。只有存在独有事实、互斥写集合或高风险独立验证时，才创建侧栏可见、拥有独立 Session、可单独验收的独立任务，禁止无意义准备工作和隐藏子智能体。
 
 每个独立任务必须带上：目标、非目标、输入、写集合、禁止修改、验证、时间预算、完成条件和停止条件。当前主任务维护 DAG、集成和跨 Lane Gate，检查实际产物与证据，不只听取“已完成”。
 
@@ -374,11 +374,11 @@ Team OS 只登记**平台总控仓库**，不逐个登记平台中的几十个�
 
 ### 9.3 讨论满意后直接推进
 
-> 按以上结论开始推进。请读取项目 `AGENTS.md`、实施规范、相关正式设计和机器入口，把结论收敛为一个结果合同和一份覆盖型实施规划，显式判断 `solo` 或 N 个独立任务，然后端到端完成实现、适用 Gate、真实入口事实和必要文档收敛。
+> 按以上结论开始推进。由当前任务的 owner 模型读取项目 `AGENTS.md`、实施规范和会改变路径的机器入口，先确认结果合同和必要的最小计划，再端到端完成实现、适用 Gate 和真实入口验收。不要预先生成完整影响地图或重复已知事实；默认由当前任务完成，只有独有事实、互斥写集合或高风险独立验证成立时才创建独立任务。
 
-如果希望明确启用真实 Luna 会话协同，再补一句：
+如果确有独立证据或高风险验证，再补一句：
 
-> 如确有独立价值，请直接创建侧栏可见的 GPT-5.6 Luna 独立任务；每个任务须有互斥写集合或独立证据并可单独验收，禁止隐藏子智能体。
+> 请创建侧栏可见、拥有独立 Session、可单独验收的独立任务；声明目标、非目标、输入、写集合、验证、预算和停止条件，并返回模型/harness 身份、证据和剩余风险。
 
 ### 9.4 只排查原因
 
@@ -450,7 +450,7 @@ references/ui-design-frontend.md 与本任务相关的章节。
 - **文件同步**：Team OS 的安装检查确认源文件与受管理的本机 Skill 投影一致，见第 2 节。若漂移，先区分仓库更新与本地自定义改动，不能直接覆盖用户修改。仅修改本使用手册不需要重新安装 Skill。
 - **会话读取**：让当前会话读取最新正文，并落实到当前任务。官方说明 Codex 会自动检测 Skill 变化，未出现时可重启；但检测到文件变化不等于旧对话中的理解已经更新。因此优先显式重读，不把重启当作每次必需步骤。[官方 Skills 说明](https://developers.openai.com/codex/skills)
 
-如果 Skill 未出现在可用列表，仍可提供 Team OS 中 `codex/skills/team-os-ui/SKILL.md` 和 `workflows/ui-design-frontend.md` 的实际路径，要求直接读取适用指引；这是文件读取兜底，不应宣称 Skill 自动发现已经修复。其它独立任务若仍在运行，需要分别收到与其工作有关的规则更新，主会话重读不会自动更新所有任务。
+如果 Skill 未出现在可用列表，仍可提供 Team OS 中 `skills/team-os-ui/SKILL.md` 和 `workflows/ui-design-frontend.md` 的实际路径，要求直接读取适用指引；这是文件读取兜底，不应宣称 Skill 自动发现已经修复。其它独立任务若仍在运行，需要分别收到与其工作有关的规则更新，主会话重读不会自动更新所有任务。
 
 ## 10. Skill 是自动触发，还是需要主动点名
 
@@ -492,6 +492,12 @@ references/ui-design-frontend.md 与本任务相关的章节。
 | 需要互补事实或独立验证 | 新建有界独立任务；只共享结果卡和必要权威 |
 | 等待用户决定、外部事实或新授权 | 进入 `waiting`，写明等待对象和恢复条件 |
 
+已有任务不会自动吸收新版本的用户级工作流。继续前发送一次重读请求：
+
+```text
+继续当前任务前，请从磁盘重读最新的用户级 AGENTS.md、项目 AGENTS.md、相关 Skill 和本任务 .work 状态。保留原 outcome、授权、变更和有效收据；不要重新启动整套规划或重复已通过的验证。由当前 owner 模型按最短可验证路径继续，只汇报实际读取文件、剩余验收和下一步；如模型、Provider 或工具能力发生变化，请显式披露。
+```
+
 交接包只传：目标与当前状态、已作决策及理由、变更路径、验证与证据引用、剩余风险、下一步和停止条件。不要复制完整 Transcript。
 
 ```mermaid
@@ -509,9 +515,9 @@ stateDiagram-v2
 
 ## 13. 常见疑问
 
-### 升级 Astra 后，日常说法要变吗？
+### 更换模型后，日常说法要变吗？
 
-不用，表达大意即可，不需要背固定口令。明确 bug 可直接“定位并修复”；大模块仍先讨论，再“按结论推进”。Skill 按意图匹配，也可显式点名；它不是保证命中的自动程序，重要边界仍应说清楚。
+不用背固定口令，但建议明确结果、成功标准、非目标和授权，要求最短可验证路径，并规定只有独有证据或高风险验证才启用独立任务。明确 bug 可直接“定位并修复”；大模块仍先讨论，再“按结论推进”。
 
 普通测试失败会返回同一负责人修复，而不是让你重复授权。确实需要新的业务决定、写权限或安全处理才暂停对应分支；方法到点无新事实则换方法。升级模型不会自动增加 Agent 数量、提升全部模型档位或改成全量回归。
 
@@ -560,8 +566,9 @@ python3 scripts/install_codex.py --check
 
 进一步理解原理时按需阅读：
 
-- [`../../workflows/conversational-orchestration.md`](../../workflows/conversational-orchestration.md)：对话如何编译成结果合同和 Codex 原生协作；
+- [`../../workflows/conversational-orchestration.md`](../../workflows/conversational-orchestration.md)：对话如何编译成结果合同和运行时协作；
 - [`../../organization/operating-model.md`](../../organization/operating-model.md)：为什么采用单一负责人、独立首轮、WIP 和短复盘；
 - [`../../workflows/adaptive-collaboration.md`](../../workflows/adaptive-collaboration.md)：五种最小协作拓扑；
+- [`../../workflows/harness-contract.md`](../../workflows/harness-contract.md)：Harness 能力、Goal 映射、运行收据和可删除性；
 - [`../../codex/README.md`](../../codex/README.md)：哪些内容会安装到 Codex；
 - [`../../projects/README.md`](../../projects/README.md)：Team OS 与各平台总控仓库如何分工。

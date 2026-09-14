@@ -1,10 +1,112 @@
-version: 1
-reviewedAt: 2026-08-23
-policy: advisory-research-only
-baseline:
-  vendor: OpenAI
-  models: [gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna]
-  purpose: 当前用户选择 Astra 负责复杂结果与综合；既有 5.6 模型保留为显式可选层，不自动切换模型或全员升级
+version: 3
+reviewedAt: 2026-09-14
+policy: capability-first-explicit-runtime-binding
+capabilityProfiles:
+  owner:
+    requires: [reliable-tool-use, instruction-following, session-continuity, final-synthesis]
+  fast:
+    requires: [low-latency, bounded-read-tools, concise-evidence]
+  review:
+    requires: [independent-model-family, falsification, read-only-operation]
+  vision:
+    requires: [image-input, visual-evidence]
+  slow:
+    requires: [complex-reasoning, bounded-high-cost-use]
+runtimePolicy:
+  preferredHarness: omp
+  compatibilityBaseline: pi
+  migrationFallback: codex
+  bindingLocation: runtime-user-config
+  rule: Team OS 不保存凭据，不因角色名或失败静默切换模型/Provider
+activePortfolio:
+  id: omp-sol-astra-deepseek-v1
+  scope: omp-interactive-software-work
+  evidencePolicy: official-capability-plus-local-task-observation
+  defaults:
+    outcomeOwner: gpt-5.6-sol
+    planningOwner: gpt-5.6-sol
+    finalSynthesis: gpt-5.6-sol
+    generalImplementation: gpt-5.6-sol
+    uiDeepDesign: gpt-6-astra
+    frontendDeepReview: gpt-6-astra
+    architectureChallenge: gpt-6-astra
+    fastScout: deepseek-v4.1-flash
+    boundedParallelImplementation: deepseek-v4.1-flash
+    independentFamilyReview: deepseek-v4.1-flash
+  ompRoleAliases:
+    plan_owner: gpt-5.6-sol
+    ui_deep: gpt-6-astra
+    deep_review: gpt-6-astra
+    fast_worker: deepseek-v4.1-flash
+  ompResolvedSelectors:
+    default: cliproxyapi/gpt-5.6-sol
+    plan_owner: cliproxyapi/gpt-5.6-sol
+    ui_deep: cliproxyapi/gpt-6-astra
+    deep_review: cliproxyapi/gpt-6-astra
+    fast_worker: deepseek/deepseek-v4.1-flash
+  providerRoutes:
+    openaiModels: local-loopback-cliproxyapi-over-codex-oauth
+    deepseekModel: direct-deepseek-api-key
+    noSilentCrossProviderFallback: true
+  models:
+    gpt-5.6-sol:
+      admission: default-owner
+      evidence:
+        official: flagship-for-complex-professional-work
+        local: preferred-for-planning-and-main-implementation
+      strengths:
+        - scope-and-plan-synthesis
+        - end-to-end-implementation
+        - tool-use-and-debugging-continuity
+        - evidence-integration-and-final-report
+      avoid:
+        - low-value-bulk-read-that-a-fast-worker-can-return-as-bounded-evidence
+      handoffContract: owns-outcome-diff-gates-and-final-synthesis
+    gpt-6-astra:
+      admission: specialist-only-by-default
+      evidence:
+        official: hardest-work-complex-reasoning-coding-computer-use-and-research
+        local: general-implementation-over-prepares-and-expands-verification
+      strengths:
+        - deep-ui-and-ux-design
+        - frontend-architecture-and-interaction-state-review
+        - difficult-cross-boundary-design-challenge
+        - high-risk-independent-review
+        - visual-and-computer-use-evidence
+      avoid:
+        - default-outcome-owner
+        - routine-general-implementation
+        - repository-wide-preparation-without-an-explicit-evidence-question
+        - broad-build-or-test-selection
+      requiresExplicitOverrideFor: [outcome-owner, general-implementation, production-write]
+      handoffContract: returns-decisions-findings-acceptance-and-evidence-to-sol-owner
+    deepseek-v4.1-flash:
+      admission: fast-specialist-with-bounded-write
+      evidence:
+        official: high-throughput-efficient-agentic-and-native-multimodal
+        local: omp-provider-and-project-write-gates-still-required
+      strengths:
+        - fast-repository-scouting
+        - bounded-fact-research
+        - batch-classification-and-mechanical-analysis
+        - independent-model-family-challenge
+        - mutually-exclusive-bounded-implementation
+      avoid:
+        - final-outcome-synthesis
+        - ambiguous-cross-boundary-design-ownership
+        - migration-or-production-write-without-explicit-authorization-and-gates
+      promotionGate:
+        - provider-and-tool-resolution-proven
+        - session-stop-and-resume-proven
+        - assigned-write-set-is-exclusive
+        - target-tests-and-diff-reviewed-by-owner
+      handoffContract: returns-bounded-evidence-or-patch-and-target-validation-to-sol-owner
+  routingRules:
+    - one-outcome-has-one-sol-owner-by-default
+    - astra-is-read-only-specialist-unless-write-is-explicitly-assigned
+    - deepseek-write-requires-exclusive-paths-and-target-validation
+    - workers-do-not-expand-scope-or-select-broad-gates
+    - fallback-never-silently-changes-owner
 candidates:
   - id: google-gemini
     models: [gemini-3.7-flash, gemini-cli-auto]
@@ -13,11 +115,11 @@ candidates:
     runtimeStatus: not-installed-by-team-os
     admission: real-task-evidence-required
   - id: deepseek-v4
-    models: [deepseek-v4-pro, deepseek-v4-flash]
+    models: [deepseek-v4-pro, deepseek-v4.1-flash]
     intendedRoles: [independent-reasoning-reviewer, cost-sensitive-batch-specialist]
     distinctChannels: [independent-model-family, open-weights-option, million-token-context]
-    runtimeStatus: not-installed-by-team-os
-    admission: real-task-evidence-required
+    runtimeStatus: omp-role-binding-pending-provider-login
+    admission: fast-specialist-active-owner-promotion-requires-real-task-evidence
   - id: xai-grok
     models: [grok-4.6]
     intendedRoles: [freshness-researcher, open-world-challenger, interactive-prototype-reviewer]
@@ -39,10 +141,6 @@ candidates:
 excluded:
   - vendor: Anthropic
     reason: user-requested-exclusion
-activeRuntime:
-  client: Codex
-  provider: OpenAI
-  policy: no-silent-provider-routing
 deferred:
   - group: additional-frontier-models
-    reason: no-proven-unique-channel-or-stable-codex-native-runtime-yet
+    reason: no-proven-unique-channel-or-stable-runtime-contract-yet

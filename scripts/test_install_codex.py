@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for the bounded Team OS Codex projection."""
+"""Unit tests for bounded Team OS runtime projections."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().with_name("install_codex.py")
+RUNTIME_SCRIPT = Path(__file__).resolve().with_name("install_runtime.py")
 
 
 class InstallCodexTest(unittest.TestCase):
@@ -85,6 +86,63 @@ class InstallCodexTest(unittest.TestCase):
             result = self.run_installer(home)
             self.assertEqual(result.returncode, 2)
             self.assertEqual(target.read_text(encoding="utf-8"), "user rules\n")
+
+
+class InstallRuntimeTest(unittest.TestCase):
+    def run_installer(
+        self, runtime: str, home: Path, *extra: str
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(RUNTIME_SCRIPT),
+                runtime,
+                "--home",
+                str(home),
+                *extra,
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_pi_projection_uses_shared_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw)
+            result = self.run_installer("pi", home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Pi 用户级短内核", (home / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertTrue((home / "skills/team-os-plan/SKILL.md").is_file())
+            self.assertFalse((home / "RULES.md").exists())
+            checked = self.run_installer("pi", home, "--check")
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_omp_projection_adds_rules_without_touching_config(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw)
+            config = home / "config.yml"
+            config.write_text("setupVersion: 2\n", encoding="utf-8")
+            result = self.run_installer("omp", home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("OMP 用户级短内核", (home / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn("常驻安全规则", (home / "RULES.md").read_text(encoding="utf-8"))
+            planner = home / "agents/team-os-planner.md"
+            ui_designer = home / "agents/team-os-ui-designer.md"
+            fast_worker = home / "agents/team-os-bounded-worker.md"
+            self.assertIn('model: "@plan_owner"', planner.read_text(encoding="utf-8"))
+            self.assertIn('model: "@ui_deep"', ui_designer.read_text(encoding="utf-8"))
+            self.assertIn('model: "@fast_worker"', fast_worker.read_text(encoding="utf-8"))
+            self.assertEqual(config.read_text(encoding="utf-8"), "setupVersion: 2\n")
+            checked = self.run_installer("omp", home, "--check")
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_runtime_manifest_cannot_be_reused_for_another_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw)
+            self.assertEqual(self.run_installer("pi", home).returncode, 0)
+            switched = self.run_installer("omp", home)
+            self.assertEqual(switched.returncode, 2)
+            self.assertIn("manifest runtime mismatch", switched.stderr)
 
 
 if __name__ == "__main__":

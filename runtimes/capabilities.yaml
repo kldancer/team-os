@@ -1,0 +1,61 @@
+version: 1
+reviewedAt: 2026-09-14
+states: [native, adapter-required, extension-required, unavailable, environment-dependent]
+canonicalSemantics:
+  durableOutcome: project-machine-state-or-work
+  projectContext: project-AGENTS-and-authorities
+  sharedSkills: team-os-skills-and-project-agents-skills
+  runtimeState: session-goal-todo-worker-and-tool-events
+harnesses:
+  codex:
+    userProjection: codex
+    contextFiles: native
+    skills: native
+    sessionResume: native
+    runtimeGoal: native
+    durableOutcome: adapter-required
+    subagents: native
+    browser: native
+    computerUse: native
+    graphicalClient: native
+    sandbox: environment-dependent
+    collaborationEvidence: sidebar-task-status-transcript-and-result
+  pi:
+    userProjection: pi
+    contextFiles: native
+    skills: native
+    sessionResume: native
+    runtimeGoal: extension-required
+    durableOutcome: adapter-required
+    subagents: extension-required
+    browser: extension-required
+    computerUse: extension-required
+    graphicalClient: unavailable
+    sandbox: unavailable
+    collaborationEvidence: extension-must-provide-status-transcript-stop-and-result
+  omp:
+    userProjection: omp
+    contextFiles: native
+    skills: native
+    sessionResume: native
+    runtimeGoal: adapter-required
+    durableOutcome: adapter-required
+    subagents: native
+    browser: native
+    computerUse: native
+    graphicalClient: environment-dependent
+    sandbox: unavailable
+    collaborationEvidence: agent-hub-status-transcript-model-stop-and-typed-result
+requiredProfiles:
+  safe:
+    allow: [read, workspace-edit, bounded-shell]
+    denyByDefault: [computer-use, production-write, destructive-write]
+  research:
+    allow: [read, web-read, browser-read]
+    denyByDefault: [workspace-write, computer-use, external-write]
+  interactive:
+    allow: [read, workspace-edit, bounded-shell, browser, computer-use]
+    denyByDefault: [production-write, destructive-write]
+  production:
+    allow: [project-approved-production-tools]
+    requires: [explicit-user-authorization, project-preflight, rollback-contract]

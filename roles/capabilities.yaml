@@ -1,9 +1,9 @@
-version: 2
+version: 3
 concepts:
   organizationalRole: 稳定责任、权限和完成责任
   capabilityProfile: 可叠加的专业知识、工具和验收方法
   persona: 任意客户端中便于用户识别的可选人物形象
-  agentInstance: 本次实际运行的 Codex 任务或会话、工作目录和运行状态
+  agentInstance: 本次实际运行的 harness 任务或 Session、工作目录、模型和运行状态
 roles:
   - id: chief-of-staff
     label: 总协调/参谋长

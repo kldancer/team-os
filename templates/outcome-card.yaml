@@ -1,4 +1,4 @@
-version: 3
+version: 4
 id: example-outcome
 title: 示例结果
 projectId: example-project
@@ -6,6 +6,14 @@ status: intake
 owner: unassigned
 outcome: 清楚描述用户最终可以验证的结果
 nonGoals: []
+runtime:
+  harnessId: null
+  harnessVersion: null
+  modelId: null
+  providerId: null
+  sessionRef: null
+  goalProjection: none
+  fallbackOccurred: false
 task:
   class: general
   risk: low
@@ -35,6 +43,7 @@ dependencies: []
 acceptance: []
 validation: []
 evidence: []
+receipts: []
 unknowns: []
 budget:
   targetMinutes: null
