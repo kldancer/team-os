@@ -708,7 +708,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 | OMP 专家 Agent | `omp/agents/*.md` | 把模型角色别名映射为有界 planner、UI、review、scout 和 write worker | 三模型职责或输出合同变化时 |
 | 能力矩阵 | `runtimes/capabilities.yaml` | 声明各 Harness 原生、需适配或不可用的能力 | 增减 Browser、Computer、Subagent 等能力时 |
 | 投影安装器 | `scripts/install_runtime.py` | 原子、可校验地把源文件安装到各运行时目录 | 新运行时或受管文件集合变化时 |
-| 日常手册 | `docs/使用手册/01-*`、`02-*` | 给人看的拓扑、话术、命令和使用边界 | 日常入口或操作方式变化时 |
+| 日常手册 | `docs/使用手册/01-*`、`02-*`、`03-*` | 给人看的拓扑、话术、命令和使用边界；`03-*` 专门覆盖 OMP 连接社区 Figma MCP Bridge | 日常入口或操作方式变化时 |
 | 项目短内核 | `<project>/AGENTS.md` | 项目事实、安全红线、流程所有者与权威路由 | 项目自身规则变化时 |
 | 项目 Skill | `<project>/.agents/skills/` | 诊断、交付、验证、刷新、生产等项目方法 | 项目执行方式变化时 |
 | 项目机器配置 | `<project>/.agents/config/` | workspace、Gate、资源和命令的机器事实 | 真实仓库、命令或资源合同变化时 |

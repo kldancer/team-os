@@ -18,7 +18,7 @@
 
 安装到运行时的只是短内核和按需 Skill，完整 Team OS 文档不会自动塞入每个任务上下文。Codex、Pi、OMP 的入口分别见 [`codex/README.md`](codex/README.md)、[`pi/README.md`](pi/README.md) 和 [`omp/README.md`](omp/README.md)。UI 设计与前端交付的方法见 [`workflows/ui-design-frontend.md`](workflows/ui-design-frontend.md)，不替代项目的设计系统和交付流程。
 
-第一次使用或需要回顾整条链路时，Codex 用户见 [`Codex + Team OS 日常工作流使用手册`](docs/使用手册/01-Codex-Team-OS日常工作流使用手册.md)，Pi/OMP 用户见 [`Pi/OMP + Team OS 使用手册`](docs/使用手册/02-Pi-OMP-Team-OS日常工作流使用手册.md)。
+第一次使用或需要回顾整条链路时，Codex 用户见 [`Codex + Team OS 日常工作流使用手册`](docs/使用手册/01-Codex-Team-OS日常工作流使用手册.md)，Pi/OMP 用户见 [`Pi/OMP + Team OS 使用手册`](docs/使用手册/02-Pi-OMP-Team-OS日常工作流使用手册.md)。使用社区 Bridge 连接本地 Figma 画布时，见 [`OMP + Figma MCP Bridge 从 0 到 1 使用手册`](docs/使用手册/03-OMP-Figma-MCP-Bridge从0到1使用手册.md)。
 
 ## 目录
 
