@@ -308,6 +308,57 @@ DeepSeek Key 不要发到聊天或写入 Team OS。从 OMP 新 Session 运行 `/
 
 当前不安装 `@router-for-me/pi-cliproxyapi-provider`。该插件 1.4.15 与 OMP 18.1.21 存在 Codex protocol 加载问题；采用 OMP 原生 `models.yml` 更短、更稳定。只有未来版本实际通过模型发现、流式响应、工具调用和 Session 恢复验证后才重新准入。
 
+### 3.6 备用聚合路由 TeamoRouter 怎样接入
+
+CLIProxyAPI 只覆盖两个 Codex OAuth 角色，DeepSeek 走官方 Key。需要 Claude、Gemini、GLM 等其它模型族，或需要在 Codex OAuth 不可用时保留一条独立上游时，可以在同一 Profile 增加第四个聚合 Provider。它只扩展可选模型集合，不改变 3.4 节的默认三模型路由。
+
+TeamoRouter 是 OpenAI 兼容的聚合网关，同一个 Key 可调用 GPT、Claude、Gemini、DeepSeek、GLM 和 Grok 族模型。它属于本机 Provider 接线，事实源是 Profile 的 `agent/models.yml`，不写入 Team OS 规则和项目仓库。
+
+| 对象 | 位置/值 | 作用 |
+| --- | --- | --- |
+| 基础地址 | `https://api.teamorouter.com/v1` | OpenAI 兼容面；`GET /v1/models` 需要 Key，无 Key 返回 401 `missing_auth_credential` |
+| 认证 | `Authorization: Bearer sk-teamo-*` | 由 `authHeader: true` 注入；Anthropic 线才用 `x-api-key` |
+| 凭据 | macOS 钥匙串 `team-os-teamorouter-local-key` | 只在 `models.yml` 中以 `!security …` 命令引用，不在文档或仓库明文保存 |
+| OMP Provider | `agent/models.yml` 的 `providers.teamorouter` | `api: openai-completions`，配合 `openai-models-list` 动态发现 |
+| 模型 selector | `teamorouter/<model-id>` | 必须带 Provider 前缀，原因见下方第 1 条 |
+
+`agent/models.yml` 中的实际形状：
+
+```yaml
+providers:
+  teamorouter:
+    baseUrl: https://api.teamorouter.com/v1
+    apiKey: "!security find-generic-password -w -a kailonyang -s team-os-teamorouter-local-key"
+    authHeader: true
+    api: openai-completions
+    discovery:
+      type: openai-models-list
+      timeoutMs: 15000
+```
+
+首次接入：
+
+```bash
+# 1) 从 Provider 控制台取得 sk-teamo-* 后存入钥匙串（交互输入，不进 shell history）
+security add-generic-password -a "$USER" -s team-os-teamorouter-local-key -w
+#    已存在同名条目时改用 -U 覆盖
+
+# 2) 验证模型发现
+omp --profile team-os models teamorouter
+
+# 3) 新建 Session 后按全限定 selector 选用
+omp --profile team-os --model teamorouter/gpt-5.6-sol
+```
+
+接入时必须知道的四个边界：
+
+1. **只能用全限定 selector。** `gpt-5.6-sol`、`gpt-6-astra`、`deepseek-flash` 等 id 在 `cliproxyapi` 与 `deepseek` Provider 下已存在；裸 id 的归属由偏好排序决定，不能假定是 TeamoRouter。要把某个模型绑定到角色，用 `omp --profile team-os config set modelRoles.<role> teamorouter/<model-id>`，然后在 `/model` 的 Roles 视图核对。
+2. **协议按线上选。** `/v1/chat/completions` 覆盖全部模型族，所以 Provider 级 `api` 固定为 `openai-completions`；`/v1/responses` 只支持 GPT 模型，Claude 与 Gemini 会返回 400。需要 Claude 原生 `/v1/messages`（thinking block 等原生能力）时，另建一个 `api: anthropic-messages` 的 Provider 并手工声明 Claude 模型清单：那一条线没有可用的 discovery，硬套 OpenAI 模型列表会把非 Claude 模型发到 `/v1/messages` 而被拒。
+3. **发现的模型可能缺少上下文与价格元数据。** 网关型 discovery 默认按“本地未知”处理；需要精确档位时，在同一 Provider 下用 `modelOverrides.<model-id>` 补 `contextWindow` / `maxTokens`，id 必须与 `/v1/models` 返回完全一致。
+4. **模型可用不等于获得授权。** 新增 Provider 只影响模型选择器；生产写、外部消息、删除数据与凭据操作仍然只由用户授权和项目规则决定。
+
+当前状态：接线已落地，`models.yml` 解析正常，既有 `cliproxyapi`（12 个模型）与 `deepseek`（4 个模型）清单未受影响；模型发现、流式响应、工具调用和 Session 恢复**尚未验收**，因此它目前只是可用候选，不在默认三模型路由内。
+
 ## 4. 一条完整的日常主链
 
 ```mermaid
@@ -633,6 +684,7 @@ omp --profile team-os config get modelRoles
 
 # 查看模型、Provider 用量和版本更新
 omp models
+omp --profile team-os models teamorouter
 omp usage
 omp update
 
@@ -683,6 +735,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 6. **上下文过长**：先把动态事实落到 `.work`，再用 `/compact`；需要保留摘要并切到新 Session 时用 `/handoff`。
 7. **流式响应或缓存异常**：使用 `/fresh` 重置 Provider 流状态；它不会清空 Transcript，也不会新建 Session。
 8. **macOS 按 `⌥A` 输入特殊字符**：终端没有把 Option 映射为 Meta；改用 `Ctrl+S`，或在终端设置中开启 Option-as-Meta，再用 `/hotkeys` 核对。
+9. **自定义 Provider 看不到模型**：先运行 `omp --profile team-os models <provider>`。出现 `SecKeychainSearchCopyNext: The specified item could not be found` 说明 `models.yml` 已加载但凭据缺失，补钥匙串条目或环境变量即可；`models.yml` schema 失败会让自定义 Provider 整体消失，此时对照 `providers` 缩进逐段核对。模型清单在 Session 启动时加载，改完配置要新建 Session。
 
 ## 13. 架构文件地图：要改什么，应去哪里
 
@@ -714,6 +767,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 | 项目机器配置 | `<project>/.agents/config/` | workspace、Gate、资源和命令的机器事实 | 真实仓库、命令或资源合同变化时 |
 | 动态状态 | `<project>/.work/` | outcome、执行状态和可复用收据 | 每次任务执行与恢复过程中 |
 | 本机 OMP 投影 | `~/.omp/profiles/team-os/agent/` | OMP 实际加载的受管副本与本机配置 | 通过安装器和 `omp config` 更新，不手改长期规则 |
+| 本机 Provider 接线 | `~/.omp/profiles/team-os/agent/models.yml` | 第三方 Provider、发现方式和模型覆盖的唯一事实源；凭据只以钥匙串/环境变量引用出现 | 新增或更换 Provider、修正模型的上下文与价格元数据时 |
 | GPT 本机代理 | `/opt/homebrew/etc/cliproxyapi.conf`、`~/.cli-proxy-api/` | 回环 API 和 Codex OAuth；秘密不进入 Team OS | 安装、重新授权或本地端口变化时 |
 
 最重要的维护方向只有一条：稳定规则在 Team OS 源文件修改，项目事实在项目仓库修改，动态证据写 `.work`，本机 Profile 只做投影和模型/认证/运行设置。这样更换模型、重装 OMP 或恢复 Session 时不会丢掉真正的工作流。
@@ -735,3 +789,4 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 - [DeepSeek V4.1 Flash 官方发布](https://www.deepseek.com/en/news/deepseek-v4-1-flash/)
 - [CLIProxyAPI 快速开始](https://github.com/router-for-me/CLIProxyAPIDocs/blob/main/docs/en/introduction/quick-start.md)
 - [OMP 自定义 Provider](https://github.com/can1357/oh-my-pi/blob/main/docs/models.md)
+- [TeamoRouter API 集成](https://api.teamorouter.com/docs/api-integration)
