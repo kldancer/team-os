@@ -51,6 +51,7 @@ def runtime_files(runtime: str) -> dict[str, Path]:
     if runtime == "omp":
         files["RULES.md"] = ROOT / "omp/RULES.md"
         files.update(OMP_AGENT_FILES)
+        files["models/catalog.yaml"] = ROOT / "models" / "catalog.yaml"
     return files
 
 

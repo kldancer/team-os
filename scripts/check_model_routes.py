@@ -4,9 +4,9 @@
 The catalog (`models/catalog.yaml`) owns the intended role -> selector mapping.
 Each harness configures its own binding (for OMP: `<profile>/agent/config.yml`),
 which is runtime user config and therefore can drift silently. This script
-compares the two, checks that every projected agent binds to a declared alias,
-and summarizes what the runtime actually resolved from its local usage
-statistics so that a reserved GPT role never silently backs regular execution.
+compares the two, checks that every projected agent chain matches the declared
+fallback chain, that no chain mixes billing classes, and summarizes what the
+runtime actually resolved from its local usage statistics per portfolio tier.
 """
 
 from __future__ import annotations
@@ -21,8 +21,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "models" / "catalog.yaml"
 AGENTS_DIR = ROOT / "omp" / "agents"
-ROLES = ("default", "plan_owner", "ui_deep", "deep_review", "fast_worker")
-RESERVED_ROLES = ("plan_owner", "ui_deep", "deep_review")
+ROLES = ("default", "plan_owner", "ui_deep", "deep_review", "fast_worker", "fast_alt")
+RESERVED_ROLES = ("plan_owner", "ui_deep", "deep_review", "fast_alt")
+PEAK_HOURS = (9, 10, 11, 14, 15, 16, 17)
 
 
 class RouteError(ValueError):
@@ -43,21 +44,27 @@ def read_yaml(path: Path) -> dict:
     return payload
 
 
-def expected_routes(catalog: dict) -> dict[str, str]:
+def portfolio_of(catalog: dict) -> dict:
     portfolio = catalog.get("activePortfolio")
     if not isinstance(portfolio, dict):
         raise RouteError("catalog is missing activePortfolio")
-    selectors = portfolio.get("ompResolvedSelectors")
-    if not isinstance(selectors, dict):
-        raise RouteError("catalog is missing activePortfolio.ompResolvedSelectors")
+    return portfolio
+
+
+def mapping_key(portfolio: dict, key: str) -> dict:
+    value = portfolio.get(key)
+    if not isinstance(value, dict):
+        raise RouteError(f"catalog is missing activePortfolio.{key}")
+    return value
+
+
+def expected_routes(catalog: dict) -> dict[str, str]:
+    selectors = mapping_key(portfolio_of(catalog), "ompResolvedSelectors")
     return {role: str(selectors.get(role, "")) for role in ROLES}
 
 
 def declared_aliases(catalog: dict) -> set[str]:
-    portfolio = catalog.get("activePortfolio")
-    aliases = portfolio.get("ompRoleAliases") if isinstance(portfolio, dict) else None
-    if not isinstance(aliases, dict):
-        raise RouteError("catalog is missing activePortfolio.ompRoleAliases")
+    aliases = mapping_key(portfolio_of(catalog), "ompRoleAliases")
     return {f"@{alias}" for alias in aliases}
 
 
@@ -68,16 +75,36 @@ def configured_routes(config: dict) -> dict[str, str]:
     return {role: str(roles.get(role, "")) for role in ROLES}
 
 
-def agent_bindings(agents_dir: Path) -> dict[str, str]:
-    bindings: dict[str, str] = {}
+def agent_chains(agents_dir: Path) -> dict[str, list[str]]:
+    """Read each projected agent's model chain, accepting a string or a list."""
+    chains: dict[str, list[str]] = {}
     if not agents_dir.is_dir():
-        return bindings
+        return chains
+    import yaml
+
     for path in sorted(agents_dir.glob("*.md")):
         for line in path.read_text(encoding="utf-8").splitlines():
-            if line.startswith("model:"):
-                bindings[path.stem] = line.split(":", 1)[1].strip().strip('"').strip("'")
-                break
-    return bindings
+            if not line.startswith("model:"):
+                continue
+            raw = line.split(":", 1)[1].strip()
+            if raw.startswith("["):
+                parsed = yaml.safe_load(raw)
+                chain = [str(item) for item in parsed] if isinstance(parsed, list) else [raw]
+            else:
+                chain = [raw.strip('"').strip("'")]
+            chains[path.stem] = chain
+            break
+    return chains
+
+
+def declared_chains(catalog: dict) -> dict[str, list[str]]:
+    chains = mapping_key(portfolio_of(catalog), "ompAgentFallbacks")
+    return {str(agent): [str(item) for item in chain] for agent, chain in chains.items()}
+
+
+def provider_billing(catalog: dict) -> dict[str, str]:
+    billing = mapping_key(portfolio_of(catalog), "ompProviderBilling")
+    return {str(provider): str(kind) for provider, kind in billing.items()}
 
 
 def split_selector(selector: str) -> tuple[str, str]:
@@ -86,6 +113,19 @@ def split_selector(selector: str) -> tuple[str, str]:
     if not separator or not level:
         return selector, ""
     return model, level
+
+
+def selector_provider(selector: str) -> str:
+    model, _ = split_selector(selector)
+    return model.split("/", 1)[0] if "/" in model else ""
+
+
+def role_providers(configured: dict[str, str]) -> dict[str, str]:
+    return {role: selector_provider(selector) for role, selector in configured.items() if selector}
+
+
+def alias_providers(configured: dict[str, str]) -> dict[str, str]:
+    return {f"@{role}": provider for role, provider in role_providers(configured).items()}
 
 
 def check_routes(expected: dict[str, str], configured: dict[str, str]) -> list[str]:
@@ -105,11 +145,16 @@ def check_routes(expected: dict[str, str], configured: dict[str, str]) -> list[s
     return issues
 
 
+def check_role_billing(configured: dict[str, str], billing: dict[str, str]) -> list[str]:
+    issues: list[str] = []
+    for role, provider in sorted(role_providers(configured).items()):
+        if provider not in billing:
+            issues.append(f"role {role} binds provider {provider} outside ompProviderBilling")
+    return issues
+
+
 def expected_task_overrides(catalog: dict) -> dict[str, str]:
-    portfolio = catalog.get("activePortfolio")
-    overrides = portfolio.get("ompTaskAgentModelOverrides") if isinstance(portfolio, dict) else None
-    if not isinstance(overrides, dict):
-        raise RouteError("catalog is missing activePortfolio.ompTaskAgentModelOverrides")
+    overrides = mapping_key(portfolio_of(catalog), "ompTaskAgentModelOverrides")
     return {str(agent): str(alias) for agent, alias in overrides.items()}
 
 
@@ -143,31 +188,127 @@ def check_task_overrides(
     return issues
 
 
-def check_bindings(bindings: dict[str, str], aliases: set[str], configured: dict[str, str]) -> list[str]:
+def check_chains(
+    chains: dict[str, list[str]],
+    declared: dict[str, list[str]],
+    billing: dict[str, str],
+    aliases: dict[str, str],
+) -> list[str]:
+    """Each projected agent must carry exactly its declared chain, inside one cost tier."""
     issues: list[str] = []
-    for name, alias in sorted(bindings.items()):
-        if not alias.startswith("@"):
-            issues.append(f"agent {name} is not bound to a role alias: {alias or '<missing>'}")
+    declared_aliases_in_chains = set(aliases)
+    for name in sorted(set(chains) | set(declared)):
+        chain = chains.get(name)
+        if chain is None:
+            issues.append(f"agent {name} is declared in the catalog but missing from omp/agents")
             continue
-        if alias not in aliases:
-            issues.append(f"agent {name} binds undeclared alias {alias}")
+        want = declared.get(name)
+        if want is None:
+            issues.append(f"agent {name} is not declared in catalog ompAgentFallbacks")
             continue
-        role = alias.lstrip("@")
-        if role not in ROLES:
-            issues.append(f"agent {name} binds unknown role {role}")
-        elif not configured.get(role):
-            issues.append(f"agent {name} binds role {role} that the runtime does not configure")
+        if chain != want:
+            issues.append(f"agent {name}: chain {chain} does not match declared {want}")
+        kinds: set[str] = set()
+        for selector in chain:
+            provider = aliases.get(selector, "") if selector.startswith("@") else selector_provider(selector)
+            if selector.startswith("@") and selector not in declared_aliases_in_chains:
+                issues.append(f"agent {name} binds undeclared alias {selector}")
+            if provider in billing:
+                kinds.add(billing[provider])
+            else:
+                issues.append(
+                    f"agent {name} uses provider {provider or '<unresolved>'} outside ompProviderBilling"
+                )
+        if len(kinds) > 1:
+            issues.append(
+                f"agent {name} mixes billing classes {sorted(kinds)}: a fallback chain stays inside one cost tier"
+            )
     return issues
 
 
-def usage_report(stats_db: Path, days: int) -> dict:
+def tier_of(model: str, tiers: dict) -> str:
+    """Classify a runtime model id into a portfolio tier by longest matching prefix."""
+    best_tier, best_length = "", 0
+    for tier, prefixes in tiers.items():
+        for prefix in prefixes:
+            name = str(prefix)
+            if model.startswith(name) and len(name) > best_length:
+                best_tier, best_length = str(tier), len(name)
+    if best_tier:
+        return best_tier
+    if model.startswith("gpt"):
+        return "standby"
+    return "other"
+
+
+def context_waste(connection: sqlite3.Connection, cutoff_ms: int) -> dict:
+    """Two measurable context-waste signals: subagent baseline cost and repeated tool calls."""
+    first_calls = connection.execute(
+        """
+        select coalesce(session_file, ''), min(timestamp) from messages
+        where timestamp >= ? and agent_type = 'subagent' group by 1
+        """,
+        (cutoff_ms,),
+    ).fetchall()
+    baselines = []
+    for session_file, stamp in first_calls:
+        row = connection.execute(
+            "select input_tokens, cache_read_tokens from messages"
+            " where coalesce(session_file, '') = ? and timestamp = ? limit 1",
+            (session_file, stamp),
+        ).fetchone()
+        if row:
+            baselines.append((row[0] or 0) + (row[1] or 0))
+    baselines.sort()
+    totals = connection.execute(
+        "select count(*), coalesce(sum(result_chars), 0) from tool_calls where timestamp >= ?",
+        (cutoff_ms,),
+    ).fetchone()
+    repeats = connection.execute(
+        """
+        select count(*), coalesce(sum(result_chars), 0) from tool_calls where timestamp >= ? and exists (
+            select 1 from tool_calls earlier
+            where earlier.session_file is tool_calls.session_file
+              and earlier.tool_name is tool_calls.tool_name
+              and earlier.args_chars is tool_calls.args_chars
+              and earlier.timestamp < tool_calls.timestamp
+        )
+        """,
+        (cutoff_ms,),
+    ).fetchone()
+    calls = totals[0] or 0
+    repeat_calls = repeats[0] or 0
+
+    def percentile(values: list[int], fraction: float) -> int | None:
+        if not values:
+            return None
+        return values[min(len(values) - 1, int(len(values) * fraction))]
+
+    return {
+        "subagentSessions": len(baselines),
+        "subagentBaselineTokens": {
+            "min": baselines[0] if baselines else None,
+            "median": percentile(baselines, 0.5),
+            "p90": percentile(baselines, 0.9),
+        },
+        "toolCalls": calls,
+        "repeatedToolCalls": repeat_calls,
+        "repeatedCallShare": round(repeat_calls / calls, 3) if calls else None,
+        "repeatedResultChars": repeats[1] or 0,
+        "repeatedCharShare": round((repeats[1] or 0) / (totals[1] or 1), 3) if totals[1] else None,
+    }
+
+
+def usage_report(stats_db: Path, days: int, tiers: dict) -> dict:
     report = {
         "statsDb": str(stats_db),
         "windowDays": days,
         "available": False,
+        "peakHours": list(PEAK_HOURS),
+        "byTier": [],
         "byModel": [],
         "contextCharsByModel": [],
-        "reservedShare": None,
+        "contextWaste": {},
     }
     if not stats_db.is_file():
         return report
@@ -180,9 +321,14 @@ def usage_report(stats_db: Path, days: int) -> dict:
         rows = connection.execute(
             """
             select model, agent_type, count(*), sum(input_tokens), sum(output_tokens),
-                   sum(cache_read_tokens), round(sum(cost_total), 4)
+                   sum(cache_read_tokens), round(sum(cost_total), 4),
+                   case when cast(strftime('%w', timestamp / 1000, 'unixepoch', 'localtime') as integer)
+                                 between 1 and 5
+                             and cast(strftime('%H', timestamp / 1000, 'unixepoch', 'localtime') as integer)
+                                 in (9, 10, 11, 14, 15, 16, 17)
+                        then 1 else 0 end as peak
             from messages where timestamp >= ?
-            group by 1, 2 order by 4 desc
+            group by 1, 2, 8 order by 3 desc
             """,
             (cutoff_ms,),
         ).fetchall()
@@ -195,6 +341,41 @@ def usage_report(stats_db: Path, days: int) -> dict:
             (cutoff_ms,),
         ).fetchall()
     report["available"] = True
+    report["contextWaste"] = context_waste(connection, cutoff_ms)
+    report["contextCharsByModel"] = [
+        {"model": row[0], "agentType": row[1], "toolCalls": row[2], "resultChars": row[3] or 0}
+        for row in chars
+    ]
+    aggregate: dict[tuple[str, str], dict] = {}
+    for model, agent_type, messages, input_tokens, output_tokens, cache_read, cost, peak in rows:
+        tier = tier_of(str(model), tiers)
+        bucket = aggregate.setdefault(
+            (tier, str(agent_type)),
+            {
+                "tier": tier,
+                "agentType": agent_type,
+                "messages": 0,
+                "inputTokens": 0,
+                "outputTokens": 0,
+                "cacheReadTokens": 0,
+                "cost": 0.0,
+                "offPeakMessages": 0,
+            },
+        )
+        bucket["messages"] += messages or 0
+        bucket["inputTokens"] += input_tokens or 0
+        bucket["outputTokens"] += output_tokens or 0
+        bucket["cacheReadTokens"] += cache_read or 0
+        bucket["cost"] += cost or 0.0
+        if not peak:
+            bucket["offPeakMessages"] += messages or 0
+    for bucket in aggregate.values():
+        bucket["cost"] = round(bucket["cost"], 4)
+        bucket["offPeakShare"] = (
+            round(bucket["offPeakMessages"] / bucket["messages"], 3) if bucket["messages"] else None
+        )
+        report["byTier"].append(bucket)
+    report["byTier"].sort(key=lambda row: -row["messages"])
     report["byModel"] = [
         {
             "model": row[0],
@@ -207,14 +388,6 @@ def usage_report(stats_db: Path, days: int) -> dict:
         }
         for row in rows
     ]
-    report["contextCharsByModel"] = [
-        {"model": row[0], "agentType": row[1], "toolCalls": row[2], "resultChars": row[3] or 0}
-        for row in chars
-    ]
-    subagent = [row for row in rows if row[1] == "subagent"]
-    total = sum(row[2] for row in subagent)
-    reserved = sum(row[2] for row in subagent if row[0].startswith("gpt"))
-    report["reservedShare"] = round(reserved / total, 3) if total else None
     return report
 
 
@@ -225,10 +398,12 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int) -> dict:
     config = read_yaml(config_path)
     expected = expected_routes(catalog)
     configured = configured_routes(config)
+    billing = provider_billing(catalog)
     issues = check_routes(expected, configured)
+    issues.extend(check_role_billing(configured, billing))
+    chains = agent_chains(AGENTS_DIR)
     aliases = declared_aliases(catalog)
-    bindings = agent_bindings(AGENTS_DIR)
-    issues.extend(check_bindings(bindings, aliases, configured))
+    issues.extend(check_chains(chains, declared_chains(catalog), billing, alias_providers(configured)))
     task_overrides = configured_task_overrides(config)
     issues.extend(
         check_task_overrides(expected_task_overrides(catalog), task_overrides, aliases, configured)
@@ -245,10 +420,10 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int) -> dict:
             }
             for role in ROLES
         },
-        "agentBindings": bindings,
+        "agentChains": chains,
         "taskAgentModelOverrides": task_overrides,
         "issues": issues,
-        "usage": usage_report(stats_db, days),
+        "usage": usage_report(stats_db, days, portfolio_of(catalog).get("tiers") or {}),
     }
 
 

@@ -1,6 +1,6 @@
 ---
 name: team-os-ui-designer
-description: 用 GPT-6 Astra 完成 UI/UX、交互状态、信息架构和视觉基线的深度设计；不承担通用实现。
+description: 用 GLM-5.3-Flash 完成 UI/UX、交互状态、信息架构和视觉基线的深度设计；不承担通用实现。
 model: "@ui_deep"
 tools: [read, grep, glob, lsp, browser, computer, web_search]
 thinking-level: high

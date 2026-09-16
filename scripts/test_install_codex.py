@@ -129,9 +129,12 @@ class InstallRuntimeTest(unittest.TestCase):
             planner = home / "agents/team-os-planner.md"
             ui_designer = home / "agents/team-os-ui-designer.md"
             fast_worker = home / "agents/team-os-bounded-worker.md"
-            self.assertIn('model: "@plan_owner"', planner.read_text(encoding="utf-8"))
-            self.assertIn('model: "@ui_deep"', ui_designer.read_text(encoding="utf-8"))
-            self.assertIn('model: "@fast_worker"', fast_worker.read_text(encoding="utf-8"))
+            self.assertIn('@plan_owner', planner.read_text(encoding="utf-8"))
+            self.assertIn('@ui_deep', ui_designer.read_text(encoding="utf-8"))
+            self.assertIn('@fast_worker', fast_worker.read_text(encoding="utf-8"))
+            catalog = home / "models/catalog.yaml"
+            self.assertTrue(catalog.is_file())
+            self.assertIn("activePortfolio", catalog.read_text(encoding="utf-8"))
             self.assertEqual(config.read_text(encoding="utf-8"), "setupVersion: 2\n")
             checked = self.run_installer("omp", home, "--check")
             self.assertEqual(checked.returncode, 0, checked.stderr)

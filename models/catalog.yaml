@@ -19,19 +19,25 @@ runtimePolicy:
   bindingLocation: runtime-user-config
   rule: Team OS 不保存凭据，不因角色名或失败静默切换模型/Provider
 activePortfolio:
-  id: omp-sol-astra-deepseek-v1
+  id: cn-k3-glm-ds-v1
   scope: omp-interactive-software-work
   evidencePolicy: official-capability-plus-local-task-observation
+  tiers:
+    analysis: [kimi-]
+    adjudication: [glm-]
+    vision: [glm-5.3-flash]
+    execution: [deepseek-]
   defaults:
-    outcomeOwner: gpt-5.6-sol
-    planningOwner: gpt-5.6-sol
-    finalSynthesis: gpt-5.6-sol
-    crossBoundaryDesign: gpt-5.6-sol
+    outcomeOwner: kimi-k3
+    planningOwner: kimi-k3
+    finalSynthesis: kimi-k3
+    crossBoundaryDesign: kimi-k3
+    deepReview: glm-5.3
+    architectureChallenge: glm-5.3
+    uiDeepDesign: glm-5.3-flash
+    frontendDeepReview: glm-5.3-flash
     generalImplementation: deepseek-flash
     leafExecution: deepseek-flash
-    uiDeepDesign: gpt-6-astra
-    frontendDeepReview: gpt-6-astra
-    architectureChallenge: gpt-6-astra
     fastScout: deepseek-flash
     boundedParallelImplementation: deepseek-flash
     independentFamilyReview: deepseek-flash
@@ -39,64 +45,139 @@ activePortfolio:
     - outcomeOwner
     - planningOwner
     - crossBoundaryDesign
+    - deepReview
+    - architectureChallenge
     - uiDeepDesign
     - frontendDeepReview
     - finalSynthesis
-  defaultExecutionRule: 保留角色由 @plan_owner/@ui_deep/@deep_review 绑定；执行档由 @fast_worker 与 task.agentModelOverrides 落实；default 角色保留给主 Session 与未绑定回退，指向保留档，不得把执行工作带回 GPT
+  defaultExecutionRule: 分析/研判/视觉三档由 @plan_owner/@deep_review/@ui_deep 显式绑定；执行档由 @fast_worker 与 task.agentModelOverrides 落实；default 角色指向分析档（主 Session 与未绑定回退）
+  quotaWindows:
+    kimi-membership:
+      channel: kimi-code
+      sharedPool: true
+      windows: [5h, weekly]
+      publishedValues: unknown
+      note: 订阅额度池与网页/Agent/深度研究/幻灯片/文档/表格/Kimi Code/Kimi Work 共享；Kimi Code 另有 5 小时/周限额；未用额度按计费周期清零
+      source: https://www.kimi.com/help/membership/membership-overview
+    glm-coding-plan:
+      channel: zhipu-coding-plan
+      promptsPer5h: {lite: "~80", pro: "~400", max: "~1600"}
+      promptsPerWeekly: {lite: "~400", pro: "~2000", max: "~8000"}
+      peakWindow: "Mon-Fri 14:00-18:00 UTC+8"
+      weekendOffPeak: true
+      modelFactors:
+        glm-5.3: {offPeak: 1.0, peak: 3.0}
+        glm-5.3-flash: {offPeak: 0.4, peak: 1.2}
+      note: 积分制按 token 抵扣；额度耗尽须等下一个 5 小时周期，不会自动转按量；周末全天按非高峰抵扣
+      source: https://docs.bigmodel.cn/cn/coding-plan/notice/usage-revision
+    deepseek-api:
+      channel: teamorouter
+      windows: []
+      peakWindow: "Mon-Fri 09:00-12:00, 14:00-18:00 UTC+8"
+      offPeakMultiplier: 0.5
+      note: 无订阅、无窗口，按量计费；官方 deepseek 通道谷时为半价
+      source: https://api-docs.deepseek.com/quick_start/pricing
   ompTaskAgentModelOverrides:
     task: "@fast_worker"
     scout: "@fast_worker"
     sonic: "@fast_worker"
   ompRoleAliases:
-    plan_owner: gpt-5.6-sol
-    ui_deep: gpt-6-astra
-    deep_review: gpt-6-astra
+    plan_owner: kimi-k3
+    deep_review: glm-5.3
+    ui_deep: glm-5.3-flash
     fast_worker: deepseek-flash
+    fast_alt: kimi-for-coding-highspeed
   ompResolvedSelectors:
-    default: cliproxyapi/gpt-5.6-sol
-    plan_owner: cliproxyapi/gpt-5.6-sol
-    ui_deep: cliproxyapi/gpt-6-astra
-    deep_review: cliproxyapi/gpt-6-astra
+    default: kimi-code/k3
+    plan_owner: kimi-code/k3-256k
+    deep_review: zhipu-coding-plan/glm-5.3
+    ui_deep: zhipu-coding-plan/glm-5.3-flash
     fast_worker: teamorouter/deepseek-flash
+    fast_alt: kimi-code/kimi-for-coding-highspeed
+  standbySelectors:
+    plan_owner: cliproxyapi/gpt-5.6-sol
+    deep_review: cliproxyapi/gpt-6-astra
+    ui_deep: cliproxyapi/gpt-6-astra
+    note: GPT 通道保留为第三意见与回退，不作为默认绑定
+  ompProviderBilling:
+    kimi-code: subscription
+    zhipu-coding-plan: subscription
+    cliproxyapi: subscription
+    teamorouter: pay-as-you-go
+    deepseek: pay-as-you-go
+  ompAgentFallbacks:
+    team-os-planner: ["@plan_owner", "kimi-code/kimi-for-coding"]
+    team-os-deep-reviewer: ["@deep_review", "zhipu-coding-plan/glm-5"]
+    team-os-ui-designer: ["@ui_deep"]
+    team-os-fast-scout: ["@fast_worker", "deepseek/deepseek-flash"]
+    team-os-bounded-worker: ["@fast_worker", "deepseek/deepseek-flash"]
   providerRoutes:
-    openaiModels: local-loopback-cliproxyapi-over-codex-oauth
-    deepseekModel: direct-deepseek-api-key
+    analysis: kimi-code-oauth-or-api-key
+    adjudication: zhipu-coding-plan-api-key
+    execution: teamorouter-deepseek-flash
+    standby: local-loopback-cliproxyapi-over-codex-oauth
     noSilentCrossProviderFallback: true
   models:
-    gpt-5.6-sol:
+    kimi-k3:
       admission: default-owner
+      runtimeModelId: k3-256k
+      runtimeModelIdLongContext: k3
+      displayName: Kimi K3
+      runtimeContextWindow: 262144
+      runtimeContextWindowLong: 1048576
       evidence:
-        official: flagship-for-complex-professional-work
-        local: preferred-for-planning-and-main-implementation
+        official: flagship-long-horizon-coding-and-end-to-end-knowledge-work
+        local: selected-as-analysis-tier-after-cn-portfolio-decision
       strengths:
         - scope-and-plan-synthesis
         - cross-boundary-design-and-state-freeze
-        - ambiguous-implementation-that-cannot-yet-be-written-as-a-worker-pack
-        - tool-use-and-debugging-continuity
-        - integration-review-and-final-report
+        - final-synthesis-and-adjudication-of-review-findings
+        - long-context-whole-repo-and-long-document-reading
+        - worker-pack-authoring
       avoid:
-        - routine-bounded-implementation-with-a-complete-worker-pack
-        - low-value-bulk-read-that-a-fast-worker-can-return-as-bounded-evidence
-        - exploring-source-or-documents-instead-of-consuming-a-scout-pack
-      handoffContract: owns-outcome-plan-worker-packs-integration-review-and-final-synthesis
-    gpt-6-astra:
+        - routine-bounded-implementation
+        - batch-execution-that-drains-the-shared-membership-pool
+        - self-review-of-its-own-conclusions
+      quotaRule: subagent-analysis-uses-k3-256k-because-quality-matches-within-256k; main-session-uses-k3-1M-because-measured-median-context-is-430k
+      measuredContext: {mainMedian: 430134, subagentMedian: 145437, mainShareOver256k: 0.738}
+      handoffContract: owns-outcome-plan-worker-packs-adjudication-and-final-synthesis
+    glm-5.3:
       admission: specialist-only-by-default
+      runtimeModelId: glm-5.3
+      displayName: GLM-5.3
+      runtimeContextWindow: 1000000
       evidence:
-        official: hardest-work-complex-reasoning-coding-computer-use-and-research
-        local: general-implementation-over-prepares-and-expands-verification
+        official: agentic-coding-and-terminal-tasks-sota-among-open-models
+        local: selected-as-adjudication-tier-after-cn-portfolio-decision
       strengths:
-        - deep-ui-and-ux-design
-        - frontend-architecture-and-interaction-state-review
-        - difficult-cross-boundary-design-challenge
-        - high-risk-independent-review
-        - visual-and-computer-use-evidence
+        - independent-cross-vendor-red-team-of-owner-plans
+        - deep-read-only-review-and-failure-surface-audit
+        - second-hypothesis-in-diagnosis
+        - whole-repo-text-only-analysis-at-1m-context
       avoid:
-        - default-outcome-owner
-        - routine-general-implementation
-        - repository-wide-preparation-without-an-explicit-evidence-question
-        - broad-build-or-test-selection
-      requiresExplicitOverrideFor: [outcome-owner, general-implementation, production-write]
-      handoffContract: returns-decisions-findings-acceptance-and-evidence-to-current-owner
+        - ui-and-visual-judgement-without-image-input
+        - routine-execution-because-its-credit-coefficient-is-the-highest
+        - final-synthesis-and-code-editing-during-review
+      handoffContract: returns-findings-and-evidence-to-the-owner-for-adjudication
+    glm-5.3-flash:
+      admission: vision-and-light-execution-specialist
+      runtimeModelId: glm-5.3-flash
+      displayName: GLM-5.3-Flash
+      runtimeContextWindow: 1000000
+      evidence:
+        official: native-multimodal-visual-coding-and-office-deliverables
+        local: only-multimodal-model-inside-the-coding-plan
+      strengths:
+        - ui-ux-and-visual-judgement
+        - frontend-implementation-loop-with-screenshots
+        - visual-and-interaction-acceptance
+        - multimodal-evidence-collection
+        - low-cost-batch-execution-inside-plan-quota
+      avoid:
+        - cross-repository-architecture-and-contract-decisions
+        - final-synthesis
+        - high-risk-independent-review
+      handoffContract: returns-visual-decisions-evidence-and-acceptance-to-the-owner
     deepseek-flash:
       admission: fast-specialist-with-bounded-write
       runtimeModelId: deepseek-flash
@@ -104,7 +185,7 @@ activePortfolio:
       runtimeContextWindow: 1000000
       evidence:
         official: high-throughput-efficient-agentic-and-native-multimodal
-        local: omp-provider-and-project-write-gates-still-required
+        local: cache-heavy-agent-workloads-keep-pay-as-you-go-cost-negligible
       strengths:
         - fast-repository-scouting-and-compressed-evidence-packs
         - bounded-fact-research
@@ -113,6 +194,7 @@ activePortfolio:
         - pack-driven-bounded-implementation
         - leaf-executor-runs-gates-smoke-refresh-production-preflight
         - mechanical-doc-updates-and-commit-preparation
+        - cheap-image-fact-extraction-before-visual-judgement
         - model-token-and-context-accounting
       avoid:
         - final-outcome-synthesis
@@ -125,14 +207,39 @@ activePortfolio:
         - assigned-write-set-is-exclusive
         - target-tests-and-diff-reviewed-by-owner
       handoffContract: returns-bounded-evidence-or-patch-and-target-validation-to-current-owner
+    gpt-5.6-sol:
+      admission: standby-third-opinion
+      evidence:
+        official: flagship-for-complex-professional-work
+        local: kept-as-third-opinion-and-fallback-after-cn-portfolio-decision
+      strengths:
+        - third-opinion-when-analysis-and-adjudication-disagree
+        - cross-boundary-design-and-state-freeze
+      avoid:
+        - default-binding-while-the-cn-portfolio-is-active
+      handoffContract: returns-decisions-and-evidence-to-the-current-owner
+    gpt-6-astra:
+      admission: standby-third-opinion
+      evidence:
+        official: hardest-work-complex-reasoning-coding-computer-use-and-research
+        local: kept-as-independent-visual-and-architecture-challenge-standby
+      strengths:
+        - independent-visual-and-frontend-architecture-challenge
+        - high-risk-independent-review
+      avoid:
+        - default-binding-while-the-cn-portfolio-is-active
+      handoffContract: returns-findings-and-evidence-to-the-current-owner
   routingRules:
     - one-outcome-has-one-owner
     - reserved-roles-are-explicitly-bound-and-never-default
-    - non-reserved-work-runs-on-the-runtime-default-model
-    - terminal-mechanical-lanes-commit-push-doc-fix-need-no-role-binding
+    - subscribe-channel-and-pay-as-you-go-channel-never-bind-the-same-role
+    - fallback-must-stay-inside-one-cost-tier-and-be-declared-in-ompAgentFallbacks
+    - quota-window-work-goes-to-models-only-that-model-can-do
+    - glm-heavy-review-runs-off-peak-and-deepseek-batch-runs-off-peak
     - every-dispatch-carries-a-self-sufficient-worker-pack
     - workers-never-exceed-the-worker-pack-write-set
-    - fallback-never-silently-changes-owner-or-upgrades-to-a-gpt-tier
+    - fallback-never-silently-changes-owner-or-upgrades-tiers
+    - terminal-mechanical-lanes-need-no-role-binding
 candidates:
   - id: google-gemini
     models: [gemini-3.7-flash, gemini-cli-auto]

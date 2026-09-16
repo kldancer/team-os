@@ -1,7 +1,7 @@
 ---
 name: team-os-bounded-worker
 description: 用 DeepSeek V4.1 Flash按派工包完成写集合互斥、验收明确的实现，返回补丁、收据与风险交给 Owner。
-model: "@fast_worker"
+model: ["@fast_worker", "deepseek/deepseek-flash"]
 tools: [read, edit, write, grep, glob, lsp, bash]
 thinking-level: high
 ---

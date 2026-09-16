@@ -168,126 +168,159 @@ omp --profile team-os
 macOS 中文档写的 `Alt` 对应 `Option`（`⌥`）；如果 `⌥` 组合键输入了特殊字符，说明当前终端没有把
 Option 映射为 Meta，应改用命令入口或先通过 `/hotkeys` 核对实际绑定。
 
-不要把模型名称写死进组织内核或项目规则；当前经过验证的组合只记录在模型目录和 OMP 适配器。本 Profile 按两档绑定：GPT 档作为保留角色绑定 `plan_owner`/`ui_deep`/`deep_review`，并让 `default` 也指向保留档（主 Session 默认模型）；执行档由 `fast_worker` 与 `task.agentModelOverrides` 落实。核对 resolved model 要双向看：保留档不得静默回退到别的模型，执行档也不得静默升级到 GPT 档位；模型切换或 fallback 发生时，必须在最终报告和适用收据中披露实际模型。
+不要把模型名称写死进组织内核或项目规则；当前经过验证的组合只记录在模型目录和 OMP 适配器。本 Profile 按四档绑定：分析档 `plan_owner`（Kimi K3）、研判档 `deep_review`（GLM-5.3）、视觉档 `ui_deep`（GLM-5.3-Flash）是订阅档角色，共同持有分析、评审、裁决和视觉判断；执行档由 `fast_worker` 与 `task.agentModelOverrides` 落实；`default` 指向分析档（主 Session 默认模型）。核对 resolved model 要双向看：订阅档角色不得静默回退或跨档，执行档也不得静默升级；模型切换或 fallback 发生时，必须在最终报告和适用收据中披露实际模型。
 
-### 3.4 GPT-5.6 Sol、GPT-6 Astra、DeepSeek V4.1 Flash 怎样分工
+### 3.4 Kimi K3、GLM-5.3、GLM-5.3-Flash、DeepSeek V4.1 Flash 怎样分工
 
-这里采用“稳定能力角色 + 当前三模型组合”两层结构。稳定角色不随厂商变化；当前组合写在 `models/catalog.yaml`，以后有真实任务证据时可以替换模型而不改组织内核。
+这里采用“稳定能力档位 + 当前四模型组合”两层结构。档位不随厂商变化；当前组合写在 `models/catalog.yaml`（id `cn-k3-glm-ds-v1`），以后有真实任务证据时可以替换模型而不改组织内核。
 
 ```mermaid
 flowchart TB
     TASK["🎯 已有 outcome 与明确任务"]
-    KIND{"需要什么独有能力？"}
-    SOL["🧑‍✈️ GPT-5.6 Sol（保留档）<br/>Owner · 规划 · 跨边界设计 · 集成复核 · 最终综合"]
-    UI["🎨 GPT-6 Astra（保留档）<br/>UI/UX · 视觉 · 前端深度设计"]
-    REVIEW["🔬 GPT-6 Astra（保留档）<br/>复杂设计/前端架构独立评审"]
-    FAST["⚡ DeepSeek V4.1 Flash<br/>默认执行档：压缩证据包 · 批量事实"]
+    KIND{"需要哪一档能力？"}
+    K3["🧭 Kimi K3（分析档）<br/>Owner · 规划 · 跨边界设计 · 裁决 · 最终综合"]
+    GLM["🔬 GLM-5.3（研判档）<br/>异厂红队 · 只读深度评审 · 失败面审计"]
+    VLM["🎨 GLM-5.3-Flash（视觉档）<br/>UI/UX · 视觉判断 · 前端实现循环"]
+    FAST["⚡ DeepSeek V4.1 Flash（执行档）<br/>压缩证据包 · 批量事实"]
     WRITE["🛠️ DeepSeek V4.1 Flash<br/>派工包内的有界实现"]
-    LEAF["⚙️ 默认执行档<br/>guard/smoke/refresh/prod-env 叶子执行 · 机械文档 · 提交准备"]
-    MERGE["🧩 Owner<br/>复核真实 diff · 决策 · 集成 · Gate"]
+    LEAF["⚙️ 执行档<br/>guard/smoke/refresh/prod-env 叶子执行 · 机械文档 · 提交准备"]
+    MERGE["🧩 Kimi K3<br/>裁决评审发现 · 复核真实 diff · 集成 · Gate"]
 
     TASK --> KIND
-    KIND -->|"定界、规划、跨边界设计、最终综合"| SOL
-    KIND -->|"新 UI、复杂交互、视觉基线"| UI
-    KIND -->|"冻结候选的深度挑战"| REVIEW
+    KIND -->|"定界、规划、跨边界设计、最终综合"| K3
+    KIND -->|"冻结候选的异厂挑战与深度评审"| GLM
+    KIND -->|"新 UI、视觉基线、交互状态"| VLM
     KIND -->|"需要独立事实或压缩证据包"| FAST
     KIND -->|"路径互斥且验收明确"| WRITE
     KIND -->|"门禁/刷新/冒烟执行或机械文档"| LEAF
-    UI --> MERGE
-    REVIEW --> MERGE
+    GLM -->|"只返回 findings 与证据，不改稿"| MERGE
+    VLM --> MERGE
     FAST --> MERGE
     WRITE --> MERGE
     LEAF --> MERGE
-    SOL --> MERGE
+    K3 --> MERGE
 
     classDef input fill:#fff4cc,stroke:#9a6b00,color:#3d2b00;
-    classDef owner fill:#dcecff,stroke:#2b6cb0,color:#17365d,stroke-width:3px;
-    classDef astra fill:#efe4ff,stroke:#7b3fc6,color:#36205a;
-    classDef deepseek fill:#dcf7e8,stroke:#21865a,color:#123f2e;
+    classDef analysis fill:#dcecff,stroke:#2b6cb0,color:#17365d,stroke-width:3px;
+    classDef judge fill:#efe4ff,stroke:#7b3fc6,color:#36205a;
+    classDef vision fill:#ffe6f2,stroke:#b5399a,color:#5c1d4d;
+    classDef exec fill:#dcf7e8,stroke:#21865a,color:#123f2e;
     classDef merge fill:#fff0e3,stroke:#bf6b21,color:#5a2f0d,stroke-width:2px;
     class TASK,KIND input;
-    class SOL owner;
-    class UI,REVIEW astra;
-    class FAST,WRITE,LEAF deepseek;
+    class K3 analysis;
+    class GLM judge;
+    class VLM vision;
+    class FAST,WRITE,LEAF exec;
     class MERGE merge;
 ```
 
-| 模型 | 默认拥有 | 最适合 | 默认不做 | 何时升级权限 |
+| 档位/模型 | 默认拥有 | 最适合 | 默认不做 | 何时升级权限 |
 | --- | --- | --- | --- | --- |
-| GPT-5.6 Sol（保留档） | outcome、规划、跨边界设计与状态冻结、集成复核、最终综合 | 需要连续理解范围、合同、集成和验证的主链 | 已能写成派工包的常规实施；可交给只读角色的批量读取 | 需要 GPT 主持时显式选择或绑定；生产写仍需用户授权 |
-| GPT-6 Astra | UI/UX 深度设计、复杂交互、前端架构/视觉评审、高风险设计挑战 | 需要深思、视觉证据、Computer Use 或跨边界反例的专家任务 | 通用实施 Owner、无问题导向的全仓准备、宽泛构建与测试 | 只有用户明确覆盖，并给定结果、范围、预算和停止条件 |
-| DeepSeek V4.1 Flash（默认执行档） | 侦察与压缩证据包、批量事实、独立模型族挑战、派工包内的有界实现、`guard`/`smoke`/`refresh`/`prod-env` 叶子执行、机械文档与提交准备 | 大量独立读取、低延迟反馈、路径互斥且验收明确的工作；上下文窗口足以吞下派工包与目标文件 | 最终综合、跨边界设计与状态冻结、migration 或生产写 Owner | Provider/工具/恢复通过验证；派工包给出互斥写集合、内联合同和目标验证；Owner 复核真实 diff |
+| 分析档：Kimi K3 | outcome、规划、跨边界设计与状态冻结、对评审发现的裁决、最终综合 | 需要连续理解范围、合同、集成和验证的主链；整仓与长文档阅读 | 已能写成派工包的常规实施；批量执行与批量读取 | 生产写仍需用户授权 |
+| 研判档：GLM-5.3 | 异厂红队、只读深度评审、失败面审计、诊断第二假设 | 冻结候选的反例搜索、跨厂独立判断、1M 纯文本全仓分析 | 最终综合；评审中改稿；无图像输入的视觉判断 | 高风险设计或用户显式要求独立挑战时启用；结论仍由分析档裁决 |
+| 视觉档：GLM-5.3-Flash | UI/UX 与视觉判断、前端交互状态、前端实现循环、多模态证据 | 需要看图、比对渲染结果、产出视觉验收结论的任务 | 跨仓架构与合同决策；最终综合；高风险独立评审 | 结论必须附 Browser/Computer 原始证据；设计定稿由分析档确认 |
+| 执行档：DeepSeek V4.1 Flash | 侦察与压缩证据包、批量事实、独立模型族挑战、派工包内的有界实现、`guard`/`smoke`/`refresh`/`prod-env` 叶子执行、机械文档与提交准备 | 大量独立读取、低延迟反馈、路径互斥且验收明确的工作；上下文窗口足以吞下派工包与目标文件 | 最终综合、跨边界设计与状态冻结、migration 或生产写 Owner | Provider/工具/恢复通过验证；派工包给出互斥写集合、内联合同和目标验证；Owner 复核真实 diff |
 
-分工按两档：保留角色（Sol 与 Astra）只做分析、设计、评审和最终综合；其余工作默认走执行档（DeepSeek），末端机械车道（提交、推送、查收据、机械校准）不要求额外角色绑定。这样 GPT 档位只在真正需要分析判断时消耗。
+分工按四档：订阅档（K3、GLM-5.3、GLM-5.3-Flash）只做只有它能做的事——裁决、红队与评审、视觉判断；其余工作默认走执行档（DeepSeek），末端机械车道（提交、推送、查收据、机械校准）不要求额外角色绑定。这样订阅窗口额度只花在无法替代的判断上。
 
-这里不是按排行榜排职位。OpenAI 官方把 Astra 定位为最高能力模型，但也明确提示它可能输出更详尽、对 Skill 指令更敏感，并在小任务上选择过宽测试；你在真实工作中已经观察到通用实施的准备工作膨胀，所以它在本组合中降为 specialist。Sol 的官方定位是复杂专业工作的旗舰模型，结合你的实测，适合作为规划、跨边界设计与集成复核 Owner；能写成派工包的常规实施下沉到执行档。DeepSeek 官方强调 V4.1 Flash 的速度、吞吐、Agent 和多模态能力，因此适合承担执行带宽，但最终责任仍留给 Owner。
+两个结构性约束与一个额度纪律：
 
-在 `/model` 的 Roles 视图配置五个自定义别名（四个保留/执行角色，加一个决定未绑定工作落点的 `default`）：
+- **异议与裁决分离。** 研判档只返回 findings 与证据，不改稿；裁决权在分析档。评审者与被评审对象必须是不同厂：K3（月之暗面）与 GLM（智谱）天然异厂。
+- **视觉两级流水线。** 截图/DOM 的事实抽取交执行档（按量、带缓存、便宜），判断与修正交视觉档；不要把整页图像在订阅窗口里反复比对。
+- **订阅档不做批量执行。** Kimi 会员池与智谱积分都是 5 小时/周窗口；GLM-5.3 在高峰（工作日 14:00–18:00）要按 3 倍系数扣减，而 GLM-5.3-Flash 非高峰只要 0.4 倍，执行负载或高峰评审都会把窗口额度耗光。窗口与峰谷排程的完整规则见 `workflows/context-economy.md` 第 5 节；窗口数值的机器事实见 `catalog.yaml` 的 `quotaWindows`。
+
+这里不是按排行榜排职位。GLM-5.3 在开放模型里的 agentic coding 与终端任务表现最强，但套餐积分系数也最高，所以只承接必须由它做的红队与评审；GLM-5.3-Flash 是套餐内唯一多模态模型，因此视觉判断归它。Kimi K3 官方定位是长程编码与端到端知识工作，适合作为规划、跨边界设计与裁决 Owner。官方文档明确 `k3-256k` 在 256K 上下文内质量与 `k3` 相同、而 `k3`（1M）消耗约为其两倍，所以**子代理规划用 `k3-256k`**；但本机实测主会话上下文中位数 430K、73.8% 的请求超过 256K，因此**主 Session 默认留在 1M `k3`**，靠第 5 节纪律把主线占用压下来，而不是靠压缩窗口换额度。DeepSeek V4.1 Flash 官方强调速度、吞吐、Agent 和多模态能力，且按量计费、无窗口，适合承担执行带宽，但最终责任仍留给分析档。
+
+在 `/model` 的 Roles 视图配置六个自定义别名（分析/研判/视觉/执行四档，加套餐内高速备选和决定未绑定工作落点的 `default`）：
 
 | OMP 角色别名 | 指向 | 用途 |
 | --- | --- | --- |
-| `plan_owner` | GPT-5.6 Sol | 保留：规划与派工包 |
-| `ui_deep` | GPT-6 Astra | 保留：UI/前端深度设计 |
-| `deep_review` | GPT-6 Astra | 保留：深度只读评审 |
-| `fast_worker` | DeepSeek V4.1 Flash | 执行：侦察与派工包内的有界实现 |
-| `default` | GPT-5.6 Sol | 保留：主 Session 默认模型与未绑定回退 |
+| `plan_owner` | Kimi K3（`k3-256k`，子代理规划） | 分析档：规划、跨边界设计、裁决与派工包 |
+| `deep_review` | GLM-5.3 | 研判档：异厂红队与深度只读评审 |
+| `ui_deep` | GLM-5.3-Flash | 视觉档：UI/前端深度设计与视觉判断 |
+| `fast_worker` | DeepSeek V4.1 Flash | 执行档：侦察与派工包内的有界实现 |
+| `fast_alt` | `kimi-for-coding-highspeed` | 套餐内高速备选：只在显式选择时使用 |
+| `default` | Kimi K3（`k3:high`，1M） | 分析档：主 Session 默认模型与未绑定回退 |
 
-在配置文件中的持久化形状大致如下；尖括号位置必须从 `/model` 的实际可用模型中选择，不能照抄：
+在配置文件中的持久化形状如下（当前实际值；换 Provider 时从 `/model` 的实际可用模型中选择，不能照抄）：
 
 ```yaml
 modelRoles:
-  plan_owner: "<实际 Sol selector>"
-  ui_deep: "<实际 Astra selector>"
-  deep_review: "<实际 Astra selector>"
-  fast_worker: "<实际 DeepSeek selector>"
-  default: "<同一个 DeepSeek selector>"
+  plan_owner: kimi-code/k3-256k
+  deep_review: zhipu-coding-plan/glm-5.3
+  ui_deep: zhipu-coding-plan/glm-5.3-flash
+  fast_worker: teamorouter/deepseek-flash
+  fast_alt: kimi-code/kimi-for-coding-highspeed
+  default: kimi-code/k3:high
 ```
 
-执行档不靠 `default` 落实：`default` 指向保留档，决定主 Session 默认模型；执行工作由 `@fast_worker` 和 Profile 的 `task.agentModelOverrides`（泛型 `task`/`scout`/`sonic`）绑定，因为**未绑定的子角色会继承父 Session 模型**。selector 与覆盖项的声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`、`ompTaskAgentModelOverrides`，可用 `python3 scripts/check_model_routes.py` 一次性核对配置漂移、agent 绑定和运行时真实解析的用量。
+执行档不靠 `default` 落实：`default` 指向分析档，决定主 Session 默认模型；执行工作由 `@fast_worker` 和 Profile 的 `task.agentModelOverrides`（泛型 `task`/`scout`/`sonic`）绑定，因为**未绑定的子角色会继承父 Session 模型**。selector、覆盖项和 agent 回退链的声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`、`ompTaskAgentModelOverrides`、`ompAgentFallbacks`（回退链只在同一计费档内），可用 `python3 scripts/check_model_routes.py` 一次性核对配置漂移、混档回退、agent 链一致性和运行时按档位/峰谷的真实用量。
 
 安装器会投影五个可直接被 `task` 调用的 OMP Agent：
 
-- `team-os-planner`：Sol，只读有界规划。
-- `team-os-ui-designer`：Astra，只读 UI/UX 和视觉设计。
-- `team-os-deep-reviewer`：Astra，只读深度评审。
+- `team-os-planner`：K3，只读有界规划。
+- `team-os-ui-designer`：GLM-5.3-Flash，只读 UI/UX 和视觉设计。
+- `team-os-deep-reviewer`：GLM-5.3，只读深度评审。
 - `team-os-fast-scout`：DeepSeek，只读高速证据。
 - `team-os-bounded-worker`：DeepSeek，只按派工包修改互斥路径，越界或合同不全时停止回报。
 
-每个需要动手或取证的派工先写自足派工包：仓库绝对路径与工作目录、写集合、禁止读取、按顺序的变更步骤、内联合同、验收命令、停止条件和输出格式（骨架见 Team OS `templates/worker-pack.md`）。下游不从设计正文反推意图；保留角色不做原始探索，改由只读角色返回带文件/行锚点的压缩证据包。
+每个需要动手或取证的派工先写自足派工包：仓库绝对路径与工作目录、写集合、禁止读取、按顺序的变更步骤、内联合同、验收命令、停止条件和输出格式（骨架见 Team OS `templates/worker-pack.md`）。下游不从设计正文反推意图；分析/研判/视觉档不做原始探索，改由只读角色返回带文件/行锚点的压缩证据包。
 
 新 Profile 尚未登录 Provider 时，`omp models` 会返回空，因此 Team OS 安装器只投影角色别名，不猜测 API、OpenRouter 或其他 Provider 的 selector。完成登录和映射后，第一次分派每种 Agent 时按 `Alt+A` 检查 resolved model；若发生错误 fallback，停止该 worker 并先修正映射。
 
-### 3.5 Codex 账号怎样安全接入 OMP
+GPT-5.6 Sol 与 GPT-6 Astra 自 2026-09-16 起降为 standby（第三意见与回退），声明在 `catalog.yaml` 的 `standbySelectors`；需要时在 `/model` 的 Roles 视图显式绑定并披露，不作为默认。
 
-GPT-5.6 Sol 和 GPT-6 Astra 通过本机 CLIProxyAPI 使用 Codex OAuth；DeepSeek V4.1 Flash 继续使用 OMP 原生 DeepSeek Provider 和你自己的 API Key。这里生成的所谓“API Key”只是访问本机代理的随机下游 Key，不是 OpenAI 官方开发者 Key。
+### 3.5 三个订阅/按量通道怎样登录
+
+当前默认组合需要三条通道，各自独立登录，凭据只留在本机：
+
+| 通道 | 用途 | 登录方式 | 额度模型 |
+| --- | --- | --- | --- |
+| `kimi-code` | `plan_owner`（K3-256K）与 `default`；`fast_alt`（高速备选） | `/login kimi-code`（OAuth 或 API Key） | 会员订阅：5 小时 + 周窗口，与网页/研究/Office/Kimi Code 共享同一个池，不用不累积 |
+| `zhipu-coding-plan` | `deep_review`（GLM-5.3）与 `ui_deep`（GLM-5.3-Flash） | `/login zhipu-coding-plan`（API Key） | 编码套餐：5 小时 + 周积分；GLM-5.3 高峰 3 倍/非高峰 1 倍，GLM-5.3-Flash 高峰 1.2 倍/非高峰 0.4 倍；高峰为工作日 14:00–18:00，周末全天非高峰 |
+| `teamorouter` | `fast_worker`（DeepSeek V4.1 Flash） | `/login teamorouter` 或 Profile 的 `models.yml` | 按量充值，无窗口；DeepSeek 官方定价高峰为工作日 09:00–12:00、14:00–18:00（UTC+8），谷时半价 |
 
 ```mermaid
 flowchart LR
     OMP["🛩️ OMP team-os Profile"]
-    KEY["🔐 macOS 钥匙串<br/>本机代理 Key"]
-    CPA["🔁 CLIProxyAPI<br/>127.0.0.1:8317"]
-    OAUTH["🔑 Codex OAuth<br/>~/.cli-proxy-api"]
-    GPT["🧠 GPT-5.6 Sol / GPT-6 Astra"]
-    DSKEY["🔐 DeepSeek API Key"]
-    DS["⚡ DeepSeek V4.1 Flash"]
+    KIMIKEY["🔐 /login kimi-code"]
+    ZHIPUKEY["🔐 /login zhipu-coding-plan"]
+    TRKEY["🔐 macOS 钥匙串<br/>team-os-teamorouter-local-key"]
+    KIMI["🧭 Kimi K3 会员池"]
+    ZHIPU["🔬 GLM-5.3 / GLM-5.3-Flash 套餐积分"]
+    TR["⚡ DeepSeek V4.1 Flash（teamorouter）"]
+    DSFALLBACK["♻️ deepseek/deepseek-flash<br/>同档按量回退"]
 
-    KEY -->|"读取，不写入仓库"| OMP
-    OMP -->|"OpenAI Responses + 本机 Key"| CPA
-    OAUTH -->|"上游认证"| CPA
-    CPA --> GPT
-    OMP -->|"原生 deepseek Provider"| DSKEY --> DS
+    OMP --> KIMIKEY --> KIMI
+    OMP --> ZHIPUKEY --> ZHIPU
+    OMP --> TRKEY --> TR
+    TR --> DSFALLBACK
 
     classDef runtime fill:#dcecff,stroke:#2b6cb0,color:#17365d,stroke-width:2px;
     classDef secret fill:#fff0e3,stroke:#bf6b21,color:#5a2f0d;
-    classDef proxy fill:#efe4ff,stroke:#7b3fc6,color:#36205a;
     classDef model fill:#dcf7e8,stroke:#21865a,color:#123f2e;
     class OMP runtime;
-    class KEY,OAUTH,DSKEY secret;
-    class CPA proxy;
-    class GPT,DS model;
+    class KIMIKEY,ZHIPUKEY,TRKEY secret;
+    class KIMI,ZHIPU,TR,DSFALLBACK model;
 ```
 
-当前本机配置：
+登录与核验：
+
+```bash
+omp --profile team-os                       # 新 Session
+# 进入后依次执行：/login kimi-code、/login zhipu-coding-plan、/login teamorouter
+omp --profile team-os models                 # 三个 Provider 都应能发现模型
+omp --profile team-os config get modelRoles  # 核对五个角色 + default 的绑定
+```
+
+- 凭据不进入 Team OS 仓库、项目文档或聊天；`models.yml` 只以 `!security find-generic-password …` 命令引用钥匙串条目。
+- 团队聚合 Key（`sk-teamo-*`）存入钥匙串 `team-os-teamorouter-local-key`，不要写进 shell history。
+- DeepSeek 同档回退 `deepseek/deepseek-flash` 由 `deepseek` Provider 提供，用于 `teamorouter` 不可用时保持执行档不掉档；它属于同一计费档（按量），因此允许作为 agent 回退链的第二项。
+- 订阅窗口的实测消耗看 `python3 scripts/check_model_routes.py` 的 `usage.byTier`（含 `offPeakShare`）；Kimi 池数值未公开，按每 5 个任务记录一次实际消耗，GLM 的扣减可在套餐控制台用量统计中直接核对。
+
+#### 3.5.1 GPT standby 通道（CLIProxyAPI）
+
+GPT-5.6 Sol 与 GPT-6 Astra 经本机 CLIProxyAPI 使用 Codex OAuth，自 2026-09-16 起降为 standby 第三意见，不绑定任何默认角色。这里生成的所谓“API Key”只是访问本机代理的随机下游 Key，不是 OpenAI 官方开发者 Key。
 
 | 对象 | 位置/值 | 作用 |
 | --- | --- | --- |
@@ -296,8 +329,7 @@ flowchart LR
 | Codex OAuth | `~/.cli-proxy-api/` | 由 CLIProxyAPI 自行刷新；不要复制到项目 |
 | 本地下游 Key | macOS 钥匙串 `team-os-cliproxyapi-local-key` | OMP 请求代理时使用，不在文档明文保存 |
 | OMP Provider | Profile 的 `models.yml` | 使用 `openai-responses` 并动态发现 `/v1/models` |
-| GPT 角色（保留档） | `cliproxyapi/gpt-5.6-sol`、`cliproxyapi/gpt-6-astra` | 绑定 `plan_owner`/`ui_deep`/`deep_review`；不再占用 `default` |
-| DeepSeek 角色 | `deepseek/deepseek-flash` | `/login deepseek` 后供 `fast_worker` 使用；该 selector 对应 DeepSeek V4.1 Flash |
+| standby selector | `cliproxyapi/gpt-5.6-sol`、`cliproxyapi/gpt-6-astra` | 声明在 `catalog.yaml` 的 `standbySelectors`；需要第三意见时显式绑定并披露 |
 
 安装或重新授权：
 
@@ -305,17 +337,8 @@ flowchart LR
 brew install cliproxyapi
 cliproxyapi -codex-login -config /opt/homebrew/etc/cliproxyapi.conf
 brew services restart cliproxyapi
-```
-
-验证服务和模型发现：
-
-```bash
 brew services info cliproxyapi
-omp --profile team-os models
-omp --profile team-os config get modelRoles
 ```
-
-DeepSeek Key 不要发到聊天或写入 Team OS。从 OMP 新 Session 运行 `/login deepseek`，在本机 TUI 的安全输入框粘贴；随后确认 `omp --profile team-os models deepseek` 能看到 V4.1 Flash。GPT 的模型发现和最小推理已经验收通过。
 
 当前不安装 `@router-for-me/pi-cliproxyapi-provider`。该插件 1.4.15 与 OMP 18.1.21 存在 Codex protocol 加载问题；采用 OMP 原生 `models.yml` 更短、更稳定。只有未来版本实际通过模型发现、流式响应、工具调用和 Session 恢复验证后才重新准入。
 
@@ -368,7 +391,7 @@ omp --profile team-os --model teamorouter/gpt-5.6-sol
 3. **发现的模型可能缺少上下文与价格元数据。** 网关型 discovery 默认按“本地未知”处理；需要精确档位时，在同一 Provider 下用 `modelOverrides.<model-id>` 补 `contextWindow` / `maxTokens`，id 必须与 `/v1/models` 返回完全一致。
 4. **模型可用不等于获得授权。** 新增 Provider 只影响模型选择器；生产写、外部消息、删除数据与凭据操作仍然只由用户授权和项目规则决定。
 
-当前状态：`modelRoles` 的五个角色都已指向 `teamorouter/*` selector，声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`；`cliproxyapi`（12 个模型）与 `deepseek`（4 个模型）清单继续保留，可作为独立上游或回退候选。改动映射后用 `python3 scripts/check_model_routes.py` 核对漂移，并在 Agent Hub 复核 worker 的实际解析模型。
+当前状态：`fast_worker` 指向 `teamorouter/deepseek-flash`，`deepseek` 官方通道（4 个模型）是其同档回退；`cliproxyapi`（Codex OAuth 通道）保留为 standby 第三意见。五个角色与 `default` 的绑定声明在 `models/catalog.yaml` 的 `ompResolvedSelectors` 与 `ompAgentFallbacks`。改动映射后用 `python3 scripts/check_model_routes.py` 核对漂移，并在 Agent Hub 复核 worker 的实际解析模型。
 
 ## 4. 一条完整的日常主链
 
@@ -412,59 +435,63 @@ flowchart LR
 
 ## 5. 可直接复制的 OMP 日常说法
 
-### 5.1 讨论，不修改
+八个说法，流程所有者写在标题里；相似意图已合并，差异用替换句表达。
 
-> 先和我讨论这个想法。只读取必要事实，比较少量可落地方案，说明关键取舍；现在不要修改文件、启动 worker 或执行远端写。
+### 5.1 讨论与设计（`design`：方案还没定）
 
-### 5.2 结论已定，直接交付
+> 先和我讨论这个想法：只读必要事实，比较少量可落地方案，说明关键取舍；现在不要改文件、启动 worker 或执行远端写。
 
-> 按以上结论开始推进。先重读用户级与项目级 AGENTS.md、命中的 Skill 和会改变执行路径的机器事实，确认结果、非目标、授权和验收。默认由当前 Owner Session 走最短可验证路径端到端完成；不要重复讨论已定结论，不做与结果无关的准备工作。
+复杂模块时把第二句换成：
 
-### 5.3 只读定位原因
+> 把它编译成一份覆盖型实施规划：覆盖用户场景、业务链、跨边界状态、失败恢复、实现 owner、依赖 DAG 和逐条验收证据；未决方案保持草案，不机械制造两份阶段文档。
+
+### 5.2 定位（`diagnose`：只查原因，或顺带修好）
+
+只查原因：
 
 > 先只读排查。给出可证伪假设、关键证据、根因和最小修复建议；不要修改文件、配置或远端状态。
 
-### 5.4 定位并修复
+要顺带修好，把第一句换成：
 
 > 定位并整改这个问题。在同一个可证伪反馈环内复现、收窄根因、补根因保护、做最小修复并运行目标验证；不要把每个症状拆成新项目。
 
-### 5.5 复杂模块，防止遗漏
+### 5.3 交付（`deliver-change`：结论已定）
 
-> 先把本次结果编译成一份覆盖型实施规划：覆盖用户场景、业务链、跨边界状态、失败恢复、实现 owner、依赖 DAG 和逐条验收证据。未决方案保持草案；结论稳定后直接实施，不机械制造两份阶段文档。
+> 按以上结论开始推进。先重读用户级/项目级 AGENTS.md、命中的 Skill 和会改变执行路径的机器事实，确认结果、非目标、授权和验收，再由当前 Owner Session 走最短可验证路径端到端完成；不重复讨论已定结论，不做与结果无关的准备。主线只留决策与收据，探索与批量读取交执行档，大输出先落 `.work` 再摘要。优先复用有效收据，只有在输入或产物变化、收据失效或验收要求时才 build/Chart/migration/全量刷新。
 
-### 5.6 明确启用多 Agent
+### 5.4 协作与角色路由（叠加在任一流程上）
 
-> 这次允许使用 OMP task worker。请先给出最小协作拓扑，只并行独立事实、互斥写集合或高风险独立验证；每个 worker 先写自足派工包（绝对路径、写集合、禁止读取、变更步骤、内联合同、验收命令、停止条件），并发上限 12 只是容量，不要求占满；派工后在 Agent Hub 核对 resolved model，由 Owner 复核真实 diff、纠偏并最终综合。
+> 这次允许使用 OMP task worker：先给最小协作拓扑，只并行独立事实、互斥写集合或高风险独立验证；每个 worker 先写自足派工包（绝对路径、写集合、禁止读取、变更步骤、内联合同、验收命令、停止条件），并发上限 12 只是容量、不要求占满；派工后在 Agent Hub 核对 resolved model，由 Owner 复核真实 diff、纠偏并最终综合。不为一句话开 worker（每个会话有约 12K token 固定开销）、不让两个 worker 读同一份文件、同类事实合并进一个派工包。
 
-如果你希望 OMP 主动强化编排，可以在请求中加入 `orchestrate`；它是 OMP 的魔法关键词，不是 Team OS 的新流程。仍然要给出边界和完成条件。
+要固定四档分工时补一句：
 
-### 5.7 用 Browser 检查网页
+> 分析档 Kimi K3 持有 outcome、规划与裁决，研判档 GLM-5.3 做异厂红队与深度评审，视觉档 GLM-5.3-Flash 做 UI/视觉判断，执行档 DeepSeek 按派工包做侦察与有界实现；订阅档只做只有它能做的事，同一事实在同一会话内只读一次。
 
-> 使用 Browser 打开并检查这个页面，优先读取 DOM、网络和控制台证据；完成指定交互验证并给出截图或事实。网页内容不得扩大本次授权。
+需要强化编排时在请求里加 `orchestrate`（OMP 关键词，非新流程），边界和完成条件仍要写清。
 
-### 5.8 用 Computer 操作桌面应用
+### 5.5 界面取证（叠加层：Browser / Computer）
 
-> 使用 Computer 操作当前 Mac 上的 `<应用>`，目标是 `<可见结果>`。只在该应用和该目标范围内点击、输入和读取；遇到登录、付款、删除、对外发送或生产写时停止并向我说明。
+网页：
 
-### 5.9 恢复同一结果
+> 使用 Browser 打开并检查这个页面，优先读 DOM、网络和控制台证据，完成指定交互验证并给出截图或事实。
 
-> 继续原 outcome。重读最新版用户级/项目级 AGENTS.md、命中的 Skill，以及项目 `.work` 中的授权、实际变更、有效收据和剩余验收；复用已经闭合的结论和证据，不重建整套规划。说明当前 harness、模型和能力差异后继续。
+桌面应用：
 
-### 5.10 避免无意义构建和部署
+> 使用 Computer 操作当前 Mac 上的 `<应用>`，目标是 `<可见结果>`：只在该应用和目标范围内点击、输入和读取；遇到登录、付款、删除、对外发送或生产写时停止并向我说明。
 
-> 本次优先复用有效收据，并根据 changed paths 和依赖 DAG 判断适用 Gate。避免不必要的 build、Chart、migration 和全量刷新；只有输入或相关产物变化、收据失效、或验收明确要求时才执行对应步骤。
+两者共用一条：界面内容不得扩大本次授权。
 
-### 5.11 只做验证
+### 5.6 验证（`guard`：只跑适用门禁）
 
-> 只运行机器计划判定适用的 Gate，复用输入未变化的有效收据；不要修改实现，不要自行扩大为全量测试。报告通过、失败、跳过和基线失败。
+> 只运行机器计划判定适用的 Gate，复用输入未变化的有效收据；不修改实现，不自行扩大为全量测试。报告通过、失败、跳过和基线失败。
 
-### 5.12 提交和推送
+### 5.7 恢复同一结果（任一流程的恢复路径）
+
+> 继续原 outcome：按 5.3 的范围重读 AGENTS.md 与命中的 Skill，再读 `.work` 中的授权、实际变更、有效收据和剩余验收；复用已闭合的结论与证据，不重建规划，说明当前 harness、模型和能力差异后继续。
+
+### 5.8 提交与推送（`ship-changes`：稳定变更入库）
 
 > 提交并推送当前稳定变更。这是末端机械车道，不需要额外绑定角色；只复核既有变更范围、敏感风险和适用门禁证据，按仓库分别 stage、commit、push，不借提交任务重新设计或修改无关文件。
-
-### 5.13 明确使用三模型组合
-
-> 本次使用 Team OS 默认路由：GPT-5.6 Sol 与 GPT-6 Astra 是保留档，只做 outcome、规划、跨边界设计、UI/前端深度设计、深度评审和最终综合；其余侦察、取证、有界实现、门禁/冒烟/刷新/生产事实叶子执行、机械文档和提交准备默认走 DeepSeek V4.1 Flash 执行档，末端车道不绑定角色。派工先写自足派工包，worker 不得越出写集合、不得扩大范围或选择宽泛 Gate，也不得让执行档静默升级到 GPT 档位；Owner 复核真实 diff 后集成。
 
 ## 6. Session、恢复与一次性执行
 
@@ -490,7 +517,7 @@ flowchart LR
 | `/fork` | 复制整个当前 Session 为新的持久 Session | 保留完整上下文，尝试另一条实现路线 |
 | `/branch` | 从选中的历史用户消息处分叉到新 Session | 回到某个需求边界重新推进，不携带后续错误路线 |
 | `/tree` | 在当前 Session 文件的历史树内移动 | 回看或重走当前对话分支；它不创建新 Session 文件 |
-| `/compact [关注点]` | 总结较旧上下文，保留近期上下文 | 长 Session 接近上下文上限；先把动态事实写入项目 `.work` |
+| `/compact [关注点]` | 总结较旧上下文，保留近期上下文 | 主会话上下文中位约 430K；先把动态事实写入项目 `.work`，再在超过约 60% 窗口时压缩，不要等接近上限才压 |
 | `/handoff [关注点]` | 将当前上下文提炼后交给一个新 Session | 当前对话已经臃肿，但结果仍未完成；不能替代项目状态 |
 | `/fresh` | 重置 Provider 流和 Prompt Cache 状态，不改变本地 Transcript | 流式响应卡住、缓存陈旧或 Provider 会话异常；不是新建 Session |
 
@@ -513,7 +540,7 @@ flowchart LR
 
 | 命令 | 实际作用 | Team OS 使用建议 |
 | --- | --- | --- |
-| `/model` 或 `/models` | 打开模型选择器和 Roles 视图 | 核对主模型与 `plan_owner/ui_deep/deep_review/fast_worker` 的实际映射 |
+| `/model` 或 `/models` | 打开模型选择器和 Roles 视图 | 核对主模型与 `plan_owner/deep_review/ui_deep/fast_worker/fast_alt` 的实际映射 |
 | `/settings` | 打开当前 Profile 的交互设置 | 调整前先确认是 Session 设置还是持久配置，不用它放宽项目安全红线 |
 | `/hotkeys` | 显示当前版本与当前 Profile 实际生效的快捷键 | 文档与终端行为不一致时，以这里显示的结果为准 |
 | `/login [provider]` | 登录或重新配置 Provider | Key 只在本机安全输入框中填写，不发到聊天或写入 Team OS |
@@ -538,7 +565,7 @@ flowchart LR
 | `/exit` 或 `/quit` | 正常退出当前 OMP 进程 | Session 已持久化时，下次用 `--continue` 或 `/resume` 恢复 |
 
 `/vibe` 是让主 Agent 以导演方式驱动持久 `fast/good` worker 的高级模式，不是上下文压缩命令；普通 Team OS
-交付仍以 Sol Owner + 按需 `task` worker 为默认。需要压缩上下文时使用 `/compact`，需要新 Session 时使用
+交付仍以 K3 Owner + 按需 `task` worker 为默认。需要压缩上下文时使用 `/compact`，需要新 Session 时使用
 `/new`、`/fork`、`/branch` 或 `/handoff`。
 
 跨 Codex、Pi、OMP 恢复时，不要把完整 Transcript 当成项目事实。最小恢复包只需要：outcome、非目标、授权、已决策事项、实际变更、有效收据、剩余验收、阻塞和下一步。
@@ -772,7 +799,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 | OMP 适配器 | `omp/AGENTS.md` | OMP Session 自动加载的用户级短内核源文件 | OMP 的默认工作习惯变化时 |
 | OMP 常驻规则 | `omp/RULES.md` | 无论任务类型都必须遵守的短安全规则 | OMP 常驻安全边界变化时 |
 | OMP 使用说明 | `omp/README.md` | Profile 安装、配置和启动的精简入口 | OMP 配置基线变化时 |
-| OMP 专家 Agent | `omp/agents/*.md` | 把模型角色别名映射为保留档 planner/UI/review 与执行档 scout/pack-worker | 角色职责、派工包或输出合同变化时 |
+| OMP 专家 Agent | `omp/agents/*.md` | 把模型角色别名映射为分析/研判/视觉档 planner/reviewer/UI-designer 与执行档 scout/pack-worker | 角色职责、派工包或输出合同变化时 |
 | 能力矩阵 | `runtimes/capabilities.yaml` | 声明各 Harness 原生、需适配或不可用的能力 | 增减 Browser、Computer、Subagent 等能力时 |
 | 投影安装器 | `scripts/install_runtime.py` | 原子、可校验地把源文件安装到各运行时目录 | 新运行时或受管文件集合变化时 |
 | 日常手册 | `docs/使用手册/01-*`、`02-*`、`03-*` | 给人看的拓扑、话术、命令和使用边界；`03-*` 专门覆盖 OMP 连接社区 Figma MCP Bridge | 日常入口或操作方式变化时 |
@@ -782,7 +809,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 | 动态状态 | `<project>/.work/` | outcome、执行状态和可复用收据 | 每次任务执行与恢复过程中 |
 | 本机 OMP 投影 | `~/.omp/profiles/team-os/agent/` | OMP 实际加载的受管副本与本机配置 | 通过安装器和 `omp config` 更新，不手改长期规则 |
 | 本机 Provider 接线 | `~/.omp/profiles/team-os/agent/models.yml` | 第三方 Provider、发现方式和模型覆盖的唯一事实源；凭据只以钥匙串/环境变量引用出现 | 新增或更换 Provider、修正模型的上下文与价格元数据时 |
-| GPT 本机代理 | `/opt/homebrew/etc/cliproxyapi.conf`、`~/.cli-proxy-api/` | 回环 API 和 Codex OAuth；秘密不进入 Team OS | 安装、重新授权或本地端口变化时 |
+| GPT standby 代理 | `/opt/homebrew/etc/cliproxyapi.conf`、`~/.cli-proxy-api/` | 回环 API 和 Codex OAuth，仅供 standby 第三意见；秘密不进入 Team OS | 安装、重新授权或本地端口变化时 |
 
 最重要的维护方向只有一条：稳定规则在 Team OS 源文件修改，项目事实在项目仓库修改，动态证据写 `.work`，本机 Profile 只做投影和模型/认证/运行设置。这样更换模型、重装 OMP 或恢复 Session 时不会丢掉真正的工作流。
 
@@ -801,6 +828,9 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 - [OpenAI 模型对比](https://developers.openai.com/api/docs/models/compare)
 - [GPT-6 Astra 官方指南](https://developers.openai.com/api/docs/guides/latest-model)
 - [DeepSeek V4.1 Flash 官方发布](https://www.deepseek.com/en/news/deepseek-v4-1-flash/)
+- [DeepSeek 官方定价与峰谷时段](https://api-docs.deepseek.com/quick_start/pricing)
+- [Kimi 会员权益与共享额度池](https://www.kimi.com/help/membership/membership-overview)
+- [GLM Coding Plan 用量与抵扣系数](https://docs.bigmodel.cn/cn/coding-plan/notice/usage-revision)
 - [CLIProxyAPI 快速开始](https://github.com/router-for-me/CLIProxyAPIDocs/blob/main/docs/en/introduction/quick-start.md)
 - [OMP 自定义 Provider](https://github.com/can1357/oh-my-pi/blob/main/docs/models.md)
 - [TeamoRouter API 集成](https://api.teamorouter.com/docs/api-integration)

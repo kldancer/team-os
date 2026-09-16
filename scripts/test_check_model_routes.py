@@ -49,7 +49,8 @@ def write_stats(path: Path, rows: list[tuple], tool_rows: list[tuple]) -> None:
             rows,
         )
         connection.executemany(
-            "insert into tool_calls (model, agent_type, timestamp, result_chars) values (?, ?, ?, ?)",
+            "insert into tool_calls (model, agent_type, timestamp, tool_name, args_chars, result_chars)"
+            " values (?, ?, ?, ?, ?, ?)",
             tool_rows,
         )
     connection.close()
@@ -83,37 +84,58 @@ class ModelRouteCheckTest(unittest.TestCase):
         )
         self.assertEqual(check_model_routes.split_selector("router/sol"), ("router/sol", ""))
 
-    def test_agent_bindings_read_front_matter_alias(self) -> None:
+    def test_agent_chains_read_both_string_and_list_front_matter(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             agents = Path(raw)
             (agents / "team-os-bounded-worker.md").write_text(
-                '---\nname: w\nmodel: "@fast_worker"\ntools: [read]\n---\n\nbody\n',
+                '---\nname: w\nmodel: ["@fast_worker", "deepseek/deepseek-flash"]\ntools: [read]\n---\n\nbody\n',
                 encoding="utf-8",
             )
             (agents / "team-os-planner.md").write_text(
                 "---\nname: p\nmodel: router/sol\n---\n", encoding="utf-8"
             )
-            bindings = check_model_routes.agent_bindings(agents)
-        self.assertEqual(bindings["team-os-bounded-worker"], "@fast_worker")
-        self.assertEqual(bindings["team-os-planner"], "router/sol")
-
-    def test_bindings_must_use_declared_and_configured_roles(self) -> None:
-        issues = check_model_routes.check_bindings(
-            {"worker": "@fast_worker", "helper": "@ghost", "literal": "router/sol"},
-            {"@fast_worker"},
-            {"fast_worker": "router/fast-free"},
+            chains = check_model_routes.agent_chains(agents)
+        self.assertEqual(
+            chains["team-os-bounded-worker"], ["@fast_worker", "deepseek/deepseek-flash"]
         )
-        joined = "\n".join(issues)
-        self.assertIn("@ghost", joined)
-        self.assertIn("literal", joined)
-        self.assertNotIn("worker", joined)
+        self.assertEqual(chains["team-os-planner"], ["router/sol"])
+
+    def test_chain_drift_and_mixed_billing_classes_are_rejected(self) -> None:
+        billing = {"deepseek": "pay-as-you-go", "kimi-code": "subscription"}
+        aliases = {"@fast_worker": "deepseek"}
+        declared = {"worker": ["@fast_worker", "deepseek/deepseek-flash"]}
+        self.assertEqual(
+            check_model_routes.check_chains(
+                {"worker": ["@fast_worker", "deepseek/deepseek-flash"]}, declared, billing, aliases
+            ),
+            [],
+        )
+        mixed = check_model_routes.check_chains(
+            {"worker": ["@fast_worker", "kimi-code/kimi-for-coding"]}, declared, billing, aliases
+        )
+        self.assertIn("mixes billing classes", "\n".join(mixed))
+        undeclared = check_model_routes.check_chains(
+            {"worker": ["@fast_worker"], "helper": ["@fast_worker"]}, declared, billing, aliases
+        )
+        self.assertIn("not declared in catalog", "\n".join(undeclared))
+        missing = check_model_routes.check_chains({}, declared, billing, aliases)
+        self.assertIn("missing from omp/agents", "\n".join(missing))
+        unlisted = check_model_routes.check_chains(
+            {"worker": ["@fast_worker", "ghost/model"]}, declared, billing, aliases
+        )
+        self.assertIn("outside ompProviderBilling", "\n".join(unlisted))
+        assert check_model_routes.check_chains(
+            {"worker": ["@fast_worker"]}, {"worker": ["@fast_worker"]}, billing, aliases
+        ) == []
 
     def test_unconfigured_alias_is_reported(self) -> None:
-        issues = check_model_routes.check_bindings(
-            {"worker": "@fast_worker"}, {"@fast_worker"}, {"fast_worker": ""}
+        issues = check_model_routes.check_chains(
+            {"worker": ["@ghost"]},
+            {"worker": ["@ghost"]},
+            {"deepseek": "pay-as-you-go"},
+            {"@fast_worker": "deepseek"},
         )
-        self.assertEqual(len(issues), 1)
-        self.assertIn("does not configure", issues[0])
+        self.assertIn("binds undeclared alias", "\n".join(issues))
 
     def test_usage_report_aggregates_actual_resolution(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -127,16 +149,24 @@ class ModelRouteCheckTest(unittest.TestCase):
                     ("deepseek-v4-flash", "teamorouter", now, 300, 30, 2700, 0.5, "subagent"),
                     ("deepseek-v4-flash", "teamorouter", now - 40 * 86400 * 1000, 1, 1, 1, 0.1, "subagent"),
                 ],
-                [("deepseek-v4-flash", "subagent", now, 12000), ("gpt-5.6-sol", "main", now, 5000)],
+                [
+                    ("deepseek-v4-flash", "subagent", now, "read", 100, 12000),
+                    ("gpt-5.6-sol", "main", now, "grep", 50, 5000),
+                ],
             )
-            report = check_model_routes.usage_report(stats, 7)
+            report = check_model_routes.usage_report(
+                stats, 7, {"analysis": ["kimi-"], "execution": ["deepseek-"]}
+            )
         self.assertTrue(report["available"])
-        subagent = {
-            (row["model"], row["agentType"]): row for row in report["byModel"]
-        }
-        self.assertEqual(subagent[("deepseek-v4-flash", "subagent")]["messages"], 1)
-        self.assertEqual(subagent[("gpt-5.6-sol", "main")]["messages"], 1)
-        self.assertEqual(report["reservedShare"], 0.5)
+        rows = {(row["model"], row["agentType"]): row for row in report["byModel"]}
+        self.assertEqual(rows[("deepseek-v4-flash", "subagent")]["messages"], 1)
+        self.assertEqual(rows[("gpt-5.6-sol", "main")]["messages"], 1)
+        tiers = {(row["tier"], row["agentType"]): row for row in report["byTier"]}
+        self.assertEqual(tiers[("execution", "subagent")]["messages"], 1)
+        self.assertEqual(tiers[("standby", "subagent")]["messages"], 1)
+        self.assertEqual(check_model_routes.tier_of("glm-5.3-flash", {"vision": ["glm-5.3-flash"], "adjudication": ["glm-"]}), "vision")
+        self.assertEqual(check_model_routes.tier_of("glm-5", {"vision": ["glm-5.3-flash"], "adjudication": ["glm-"]}), "adjudication")
+        self.assertIsNotNone(tiers[("execution", "subagent")]["offPeakShare"])
         self.assertEqual(report["contextCharsByModel"][0]["resultChars"], 12000)
 
     def test_task_agent_overrides_are_checked_against_the_catalog(self) -> None:
@@ -158,11 +188,37 @@ class ModelRouteCheckTest(unittest.TestCase):
         )
         self.assertIn("does not configure", unconfigured[0])
 
+    def test_context_waste_reports_baseline_and_repeated_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            stats = Path(raw) / "stats.db"
+            now = int(time.time() * 1000)
+            write_stats(
+                stats,
+                [
+                    ("kimi-k3-256k", "kimi-code", now - 500, 7000, 10, 600, 0.0, "subagent"),
+                    ("kimi-k3-256k", "kimi-code", now - 400, 100, 10, 900, 0.0, "subagent"),
+                    ("kimi-k3", "kimi-code", now - 300, 900, 10, 12000, 0.0, "main"),
+                ],
+                [
+                    ("kimi-k3-256k", "subagent", now - 399, "read", 400, 4000),
+                    ("kimi-k3-256k", "subagent", now - 398, "read", 400, 4000),
+                    ("kimi-k3-256k", "subagent", now - 397, "grep", 60, 1000),
+                ],
+            )
+            report = check_model_routes.usage_report(stats, 7, {})
+        waste = report["contextWaste"]
+        self.assertEqual(waste["subagentSessions"], 1)
+        self.assertEqual(waste["subagentBaselineTokens"]["median"], 7600)
+        self.assertEqual(waste["toolCalls"], 3)
+        self.assertEqual(waste["repeatedToolCalls"], 1)
+        self.assertEqual(waste["repeatedResultChars"], 4000)
+        self.assertAlmostEqual(waste["repeatedCharShare"], 0.444, places=3)
+
     def test_missing_stats_database_reports_unavailable_instead_of_zero(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
-            report = check_model_routes.usage_report(Path(raw) / "absent.db", 7)
+            report = check_model_routes.usage_report(Path(raw) / "absent.db", 7, {})
         self.assertFalse(report["available"])
-        self.assertIsNone(report["reservedShare"])
+        self.assertEqual(report["byTier"], [])
         self.assertEqual(report["byModel"], [])
 
     def test_cli_checks_the_live_binding_against_the_catalog(self) -> None:

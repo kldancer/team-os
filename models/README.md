@@ -22,7 +22,7 @@ Team OS 不把结果负责人永久绑定到某个模型。先为任务选择能
 4. **用户体验**：能在当前主要 harness 中稳定运行，不增加常规任务步骤；
 5. **安全边界**：工具授权、超时、停止和隔离能够被用户检查并由项目合同约束。
 
-排名、自报 benchmark、上下文窗口和“另一模型也同意”都不能替代上述证据。Claude 系列按用户要求排除。
+排名、自报 benchmark、上下文窗口和“另一模型也同意”都不能替代上述证据。Claude 系列按用户要求排除；GPT 系列自 2026-09-16 起降为 standby 第三意见。
 
 ## Owner 与辅助模型
 
@@ -30,21 +30,29 @@ Team OS 不把结果负责人永久绑定到某个模型。先为任务选择能
 
 每个新增 Skill、角色、Gate 或启动文件都必须说明它解决的具体失败、贡献的独有证据和删除条件。连续相近任务后重新检查这些部件；如果只增加 Token、等待或交接而没有改善结果，就删除或简化。
 
-## OMP 三模型默认组合
+## OMP 四模型组合（当前默认）
 
-当前常用组合的机器权威是 `catalog.yaml` 的 `activePortfolio`。它是可复核的运行策略，不是组织宪法：新证据出现时修改目录，不把模型偏好扩散到所有项目规则。
+当前组合的机器权威是 `catalog.yaml` 的 `activePortfolio`（id `cn-k3-glm-ds-v1`）。它是可复核的运行策略，不是组织宪法：新证据出现时修改目录，不把模型偏好扩散到所有项目规则。
 
-| 任务责任 | 默认模型 | 原因 | 默认禁止 |
+角色分四档，档位稳定、模型可替换：
+
+| 档位 | 模型 | 默认拥有 | 默认不做 |
 | --- | --- | --- | --- |
-| 保留：outcome owner、规划、跨边界设计、集成复核、最终综合 | GPT-5.6 Sol | 在当前工作流中能更稳定地把范围、合同、集成和验证连成最短闭环 | 不承担已能写成派工包的常规实现，不做可交给只读角色的批量读取 |
-| UI/UX 深度设计、前端交互状态与架构评审、高风险独立挑战 | GPT-6 Astra | 官方能力覆盖复杂推理、视觉、Computer Use 和长链工作；本地实测更适合深度专家证据 | 默认不拥有通用实施，不自行扩大全仓准备、构建或测试 |
-| 执行档：侦察、取证、派工包内实现、门禁/冒烟/刷新/生产事实叶子执行、机械文档与提交准备 | DeepSeek V4.1 Flash | 官方定位强调高吞吐、低成本、Agent 和多模态能力，适合承担执行带宽；上下文窗口足够吞下派工包和目标文件 | 不做最终综合；跨边界设计与状态冻结、migration 和生产写不得默认承担 |
+| 分析档 | Kimi K3（主 Session `k3` 1M；子代理规划 `k3-256k`） | outcome、规划、跨边界设计与状态冻结、对评审发现的裁决、最终综合 | 已能写成派工包的常规实施；批量执行 |
+| 研判档 | GLM-5.3 | 异厂红队、只读深度评审、失败面审计、诊断第二假设 | 最终综合；改稿；无图像的视觉判断 |
+| 视觉档 | GLM-5.3-Flash | UI/UX 与视觉判断、前端实现循环、多模态证据 | 跨仓架构与合同决策；高风险独立评审 |
+| 执行档 | DeepSeek V4.1 Flash（`teamorouter/deepseek-flash`） | 侦察、压缩证据包、批量取证、派工包内的有界实现、门禁/冒烟/刷新/生产事实叶子执行、机械文档与提交准备 | 最终综合；跨边界设计；越出派工包写集合；无授权的生产写 |
 
-这里特意区分“能力强”和“适合当 Owner”。Astra 的能力上限最高，不代表它在当前 Team OS Prompt、项目规则和日常实施中具有最低协调成本。用户已经观察到其通用实施会产生过量准备工作；这项本地证据足以把它降为 specialist，但不否定它在 UI、前端设计、复杂评审和视觉事实上的价值。
+- **异议与裁决分离**：研判档只返回 findings 与证据，裁决权在分析档；评审者不改稿，改稿者不自评。
+- **订阅档只做只有它能做的事**：Kimi 会员池与智谱积分都是窗口额度，批量执行、批量读取和机械任务一律走无窗口的执行档。
+- **256K 与 1M 的分工有实测依据**：官方文档明确 `k3-256k` 在 256K 内质量与 `k3` 相同、消耗只有一半；本机实测子代理上下文中位 145K（用 256K）、主会话中位 430K 且 73.8% 请求超过 256K（用 1M）。别用压缩窗口换额度。
+- **上下文浪费按机器度量止损**：子代理固定开销中位 11.8K token/会话、同会话重复工具调用占 26.6%、重复结果字符占 31.7%。规则见 `workflows/context-economy.md` 第 6 节。
+- **窗口与峰谷排程**、视觉两级流水线（执行档抽事实 → 视觉档做判断）的完整规则见 `workflows/context-economy.md` 第 5 节，窗口数值的机器事实见 `catalog.yaml` 的 `quotaWindows`。
+- **GPT 通道保留为 standby**（`gpt-5.6-sol`、`gpt-6-astra`，经本地 CLIProxyAPI）作第三意见与回退，不作为默认绑定；需要时显式切换并披露。
 
-执行档承担全部非保留工作：命名 agent 绑定 `@fast_worker`，泛型 `task`/`scout`/`sonic` 由 Profile 的 `task.agentModelOverrides` 绑定，因此主 Session 用哪个模型都不会把执行带回 GPT。末端机械车道（提交、推送、查收据、机械校准）不要求额外角色绑定。需要写文件时，派工包必须给出互斥写集合、内联合同和目标验证，由当前 Owner 复核真实 diff 后集成；Provider、工具、停止与恢复仍未通过时，只用于可丢弃的只读任务。
+执行档承担全部非档位工作：命名 agent 绑定 `@fast_worker`，泛型 `task`/`scout`/`sonic` 由 Profile 的 `task.agentModelOverrides` 绑定，因此主 Session 用哪个模型都不会把执行带回订阅档。末端机械车道（提交、推送、查收据、机械校准）不要求额外角色绑定。需要写文件时，派工包必须给出互斥写集合、内联合同和目标验证，由当前 Owner 复核真实 diff 后集成；Provider、工具、停止与恢复仍未通过时，只用于可丢弃的只读任务。
 
-OMP 通过自定义角色别名而不是具体 Provider selector 固化路由：`@plan_owner`/`@ui_deep`/`@deep_review` 是保留档，`@fast_worker` 是执行档；`default` 指向保留档（主 Session 与未绑定回退），执行工作不得依赖它。具体 selector 在 `/model` 的 Roles 视图中配置，声明在 `catalog.yaml` 的 `ompResolvedSelectors`，并用 `scripts/check_model_routes.py` 核对漂移，以适应 API、OpenRouter 或其他 Provider 的不同命名。
+OMP 通过自定义角色别名而不是具体 Provider selector 固化路由：`@plan_owner`（分析档）、`@deep_review`（研判档）、`@ui_deep`（视觉档）是订阅档角色，`@fast_worker` 是执行档，`@fast_alt` 是套餐内高速备选（只在显式选择时使用）；`default` 指向分析档（主 Session 与未绑定回退）。具体 selector 声明在 `catalog.yaml` 的 `ompResolvedSelectors`，agent 回退链声明在 `ompAgentFallbacks`，用 `scripts/check_model_routes.py` 核对漂移、混档回退与按档位/峰谷的用量。
 
 长期记忆必须经过 `observation → candidate → reviewed → canonical` 晋升，带来源、适用范围、owner、复核时间和失效关系。一次会话或一次 Gate 不得直接改写全局 `AGENTS.md`。
 
