@@ -35,3 +35,5 @@ intake → ready → doing → verifying → done
 默认的人机入口和运行时组织方式见 [对话式规划与运行时组织](conversational-orchestration.md)。Harness 准入和能力降级见 [Harness 运行合同](harness-contract.md)。
 
 UI 新设计、按稿还原和可见前端改动按需叠加 [UI 设计与前端交付工作流](ui-design-frontend.md)；它补设计基线与视觉证据，不增加流程所有者。
+
+派工、读取纪律、证据包和执行模型分档见 [上下文经济与派工包](context-economy.md)；它约束上下文消耗和任务分派方式，不改变生命周期、证据和责任归属。

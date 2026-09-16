@@ -17,7 +17,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 omp --profile team-os
 ```
 
-随后在交互界面完成 Provider 登录和 `/model` 选择。凭据和 Provider selector 不写入 Team OS 仓库；三模型组合的当前默认路由是：GPT-5.6 Sol 持有 outcome、规划、通用实施和最终综合，GPT-6 Astra 提供 UI/前端深度设计与评审，DeepSeek V4.1 Flash 提供快速侦察、独立挑战和互斥写集合的有界实现。
+随后在交互界面完成 Provider 登录和 `/model` 选择。凭据和 Provider selector 不写入 Team OS 仓库；三模型组合的当前路由是：GPT-5.6 Sol 与 GPT-6 Astra 是保留角色，只做 outcome、规划、跨边界设计、UI/前端深度设计、深度评审和最终综合；其余侦察、批量取证、有界实现、门禁/冒烟/刷新/生产事实执行、机械文档与提交准备由执行档承担：命名 agent 绑 `@fast_worker`，泛型 `task`/`scout`/`sonic` 由 `task.agentModelOverrides` 绑定；`default` 指向保留档并决定主 Session 默认模型，末端机械车道不要求额外角色绑定。
 
 ## 三模型角色绑定
 
@@ -25,15 +25,17 @@ omp --profile team-os
 
 | Agent | 角色别名 | 默认模型 | 责任 |
 | --- | --- | --- | --- |
-| `team-os-planner` | `@plan_owner` | GPT-5.6 Sol | 有界规划、DAG 和验收映射 |
+| `team-os-planner` | `@plan_owner` | GPT-5.6 Sol | 有界规划、DAG、验收映射和派工包 |
 | `team-os-ui-designer` | `@ui_deep` | GPT-6 Astra | UI/UX、交互状态和视觉基线 |
 | `team-os-deep-reviewer` | `@deep_review` | GPT-6 Astra | UI、前端架构和高风险设计只读评审 |
-| `team-os-fast-scout` | `@fast_worker` | DeepSeek V4.1 Flash | 高速只读侦察和独立模型族挑战 |
-| `team-os-bounded-worker` | `@fast_worker` | DeepSeek V4.1 Flash | 互斥写集合的小型实现和目标验证 |
+| `team-os-fast-scout` | `@fast_worker` | DeepSeek Flash | 压缩证据包和独立模型族挑战 |
+| `team-os-bounded-worker` | `@fast_worker` | DeepSeek Flash | 按派工包的执行、写集合内实现和目标验证 |
 
-登录 Provider 后打开 `/model` 的 Roles 视图，把 `plan_owner` 指向 Sol、`ui_deep` 和 `deep_review` 指向 Astra、`fast_worker` 指向 DeepSeek。不同 Provider 的 selector 可能不同，所以安装器不猜测模型 ID，也不覆盖认证和 `config.yml`。主 Session 仍应直接选择 GPT-5.6 Sol；角色别名用于后续 task agent 解析。第一次分派每种 Agent 时，在 Agent Hub 检查 resolved model；映射缺失或 fallback 到其他模型时停止该 worker，先修正角色映射。
+登录 Provider 后打开 `/model` 的 Roles 视图：`plan_owner`/`ui_deep`/`deep_review` 指向保留档，`fast_worker` 指向 DeepSeek，`default` 指向保留档（主 Session 默认模型）。同时在 `config.yml` 写 `task.agentModelOverrides`，把泛型 `task`/`scout`/`sonic` 绑到 `@fast_worker`，否则它们会继承父 Session 模型。不同 Provider 的 selector 可能不同，安装器不猜测模型 ID，也不覆盖认证和 `config.yml`。第一次分派每种 Agent 时，在 Agent Hub 检查 resolved model：保留角色不得静默回退，执行角色不得静默升级到 GPT 档位；映射缺失或 fallback 不符时停止该 worker，先修正角色映射。
 
-Astra 的 specialist 限制来自当前真实使用证据：通用实施容易扩大全仓准备与验证。它仍保留高难推理、视觉和 Computer Use 能力，但默认只产出设计或评审证据，再交给 Sol Owner 实施。DeepSeek 写 worker 只有在路径互斥、目标验证明确且 Owner 会复核 diff 时使用。
+映射可以用 [`../scripts/check_model_routes.py`](../scripts/check_model_routes.py) 一次性核对：它比对 `models/catalog.yaml` 的 `ompResolvedSelectors` 与 Profile `config.yml` 的实际绑定，并汇总运行时统计库中每个模型/agent 类型的真实用量，用于判断执行是否真的落在快速档。
+
+Astra 的 specialist 限制来自当前真实使用证据：通用实施容易扩大全仓准备与验证。它仍保留高难推理、视觉和 Computer Use 能力，但默认只产出设计或评审证据，再交给 Owner 实施。DeepSeek 执行 worker 只在派工包给出互斥写集合、内联合同和目标验证时使用，Owner 复核真实 diff 后集成。
 
 ## Codex 订阅经 CLIProxyAPI 接入
 
@@ -52,7 +54,7 @@ OMP ──DeepSeek Key───────────────────�
 - `~/.cli-proxy-api/`：CLIProxyAPI 自己保存 Codex OAuth；不进入 Team OS。
 - macOS 钥匙串服务 `team-os-cliproxyapi-local-key`：保存同一个下游 Key。
 - OMP Profile 的 `models.yml`：只保存从钥匙串读取 Key 的命令，不保存明文 Key。
-- OMP Profile 的 `config.yml`：保存 `cliproxyapi/gpt-5.6-sol`、`cliproxyapi/gpt-6-astra` 和 `deepseek/deepseek-v4.1-flash` 角色映射。
+- OMP Profile 的 `config.yml`：保存 `modelRoles` 角色映射（保留角色指向 Sol/Astra，`fast_worker` 与 `default` 指向同一个 DeepSeek selector）；实际 selector 由 `models/catalog.yaml` 的 `ompResolvedSelectors` 声明，用 `scripts/check_model_routes.py` 核对漂移。
 
 安装、OAuth 和检查：
 

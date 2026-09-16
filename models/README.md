@@ -36,18 +36,18 @@ Team OS 不把结果负责人永久绑定到某个模型。先为任务选择能
 
 | 任务责任 | 默认模型 | 原因 | 默认禁止 |
 | --- | --- | --- | --- |
-| outcome owner、规划、通用实施、最终综合 | GPT-5.6 Sol | 在当前工作流中能更稳定地把范围、实现、工具和验证连成最短闭环 | 不把可并行的低价值批量读取全留给 Owner |
+| 保留：outcome owner、规划、跨边界设计、集成复核、最终综合 | GPT-5.6 Sol | 在当前工作流中能更稳定地把范围、合同、集成和验证连成最短闭环 | 不承担已能写成派工包的常规实现，不做可交给只读角色的批量读取 |
 | UI/UX 深度设计、前端交互状态与架构评审、高风险独立挑战 | GPT-6 Astra | 官方能力覆盖复杂推理、视觉、Computer Use 和长链工作；本地实测更适合深度专家证据 | 默认不拥有通用实施，不自行扩大全仓准备、构建或测试 |
-| 快速仓库侦察、批量事实、独立模型族挑战、互斥写集合的小型实现 | DeepSeek V4.1 Flash | 官方定位强调高吞吐、低成本、Agent 和多模态能力，适合扩大并行证据带宽 | 不做最终综合；跨边界、migration 和生产写不得默认承担 |
+| 执行档：侦察、取证、派工包内实现、门禁/冒烟/刷新/生产事实叶子执行、机械文档与提交准备 | DeepSeek V4.1 Flash | 官方定位强调高吞吐、低成本、Agent 和多模态能力，适合承担执行带宽；上下文窗口足够吞下派工包和目标文件 | 不做最终综合；跨边界设计与状态冻结、migration 和生产写不得默认承担 |
 
 这里特意区分“能力强”和“适合当 Owner”。Astra 的能力上限最高，不代表它在当前 Team OS Prompt、项目规则和日常实施中具有最低协调成本。用户已经观察到其通用实施会产生过量准备工作；这项本地证据足以把它降为 specialist，但不否定它在 UI、前端设计、复杂评审和视觉事实上的价值。
 
-DeepSeek V4.1 Flash 可以直接承担只读 `fast` 工作。需要写文件时，必须同时满足：任务边界明确、写集合互斥、目标验证明确、Sol Owner 复核 diff；Provider、工具、停止与恢复仍未通过时，只用于可丢弃的只读任务。
+执行档承担全部非保留工作：命名 agent 绑定 `@fast_worker`，泛型 `task`/`scout`/`sonic` 由 Profile 的 `task.agentModelOverrides` 绑定，因此主 Session 用哪个模型都不会把执行带回 GPT。末端机械车道（提交、推送、查收据、机械校准）不要求额外角色绑定。需要写文件时，派工包必须给出互斥写集合、内联合同和目标验证，由当前 Owner 复核真实 diff 后集成；Provider、工具、停止与恢复仍未通过时，只用于可丢弃的只读任务。
 
-OMP 通过自定义角色别名而不是具体 Provider selector 固化路由：`@plan_owner` 指向 Sol，`@ui_deep` 与 `@deep_review` 指向 Astra，`@fast_worker` 指向 DeepSeek。具体 selector 在 `/model` 的 Roles 视图中配置，以适应 API、OpenRouter 或其他 Provider 的不同命名。
+OMP 通过自定义角色别名而不是具体 Provider selector 固化路由：`@plan_owner`/`@ui_deep`/`@deep_review` 是保留档，`@fast_worker` 是执行档；`default` 指向保留档（主 Session 与未绑定回退），执行工作不得依赖它。具体 selector 在 `/model` 的 Roles 视图中配置，声明在 `catalog.yaml` 的 `ompResolvedSelectors`，并用 `scripts/check_model_routes.py` 核对漂移，以适应 API、OpenRouter 或其他 Provider 的不同命名。
 
 长期记忆必须经过 `observation → candidate → reviewed → canonical` 晋升，带来源、适用范围、owner、复核时间和失效关系。一次会话或一次 Gate 不得直接改写全局 `AGENTS.md`。
 
 ## 可选证据通道
 
-Gemini、DeepSeek、Grok、Kimi 和 Qwen 的候选结论保留在 `catalog.yaml`。新模型先限制为隔离、只读、可丢弃的研究试点，再比较独有证据、错误相关性、工具成功率、Token、延迟和人工纠偏。DeepSeek V4.1 Flash 可优先试用 `fast` 或只读研究画像；在写入、停止恢复和适用 Gate 稳定前不自动提升为 owner。
+Gemini、DeepSeek、Grok、Kimi 和 Qwen 的候选结论保留在 `catalog.yaml`。新模型先限制为隔离、只读、可丢弃的研究试点，再比较独有证据、错误相关性、工具成功率、Token、延迟和人工纠偏。DeepSeek V4.1 Flash 已作为执行档投入使用；把执行角色提升为结果 owner 仍需真实任务证据。

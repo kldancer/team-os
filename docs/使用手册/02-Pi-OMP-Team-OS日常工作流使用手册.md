@@ -168,7 +168,7 @@ omp --profile team-os
 macOS 中文档写的 `Alt` 对应 `Option`（`⌥`）；如果 `⌥` 组合键输入了特殊字符，说明当前终端没有把
 Option 映射为 Meta，应改用命令入口或先通过 `/hotkeys` 核对实际绑定。
 
-不要把模型名称写死进组织内核或项目规则；当前经过验证的组合只记录在模型目录和 OMP 适配器。把已通过真实读写、工具调用和 Gate 验证的模型绑定给 `owner`；快模型绑定 `fast/smol`，独立审查模型绑定 `review`，视觉能力绑定 `vision`，长推理模型绑定 `slow/plan`。模型切换或 fallback 发生时，应在最终报告和适用收据中披露实际模型。
+不要把模型名称写死进组织内核或项目规则；当前经过验证的组合只记录在模型目录和 OMP 适配器。本 Profile 按两档绑定：GPT 档作为保留角色绑定 `plan_owner`/`ui_deep`/`deep_review`，并让 `default` 也指向保留档（主 Session 默认模型）；执行档由 `fast_worker` 与 `task.agentModelOverrides` 落实。核对 resolved model 要双向看：保留档不得静默回退到别的模型，执行档也不得静默升级到 GPT 档位；模型切换或 fallback 发生时，必须在最终报告和适用收据中披露实际模型。
 
 ### 3.4 GPT-5.6 Sol、GPT-6 Astra、DeepSeek V4.1 Flash 怎样分工
 
@@ -178,23 +178,26 @@ Option 映射为 Meta，应改用命令入口或先通过 `/hotkeys` 核对实�
 flowchart TB
     TASK["🎯 已有 outcome 与明确任务"]
     KIND{"需要什么独有能力？"}
-    SOL["🧑‍✈️ GPT-5.6 Sol<br/>Owner · 规划 · 通用实施 · 最终综合"]
-    UI["🎨 GPT-6 Astra<br/>UI/UX · 视觉 · 前端深度设计"]
-    REVIEW["🔬 GPT-6 Astra<br/>复杂设计/前端架构独立评审"]
-    FAST["⚡ DeepSeek V4.1 Flash<br/>快速侦察 · 批量事实 · 独立挑战"]
-    WRITE["🛠️ DeepSeek V4.1 Flash<br/>互斥写集合的有界实现"]
-    MERGE["🧩 Sol Owner<br/>复核产物 · 决策 · 集成 · Gate"]
+    SOL["🧑‍✈️ GPT-5.6 Sol（保留档）<br/>Owner · 规划 · 跨边界设计 · 集成复核 · 最终综合"]
+    UI["🎨 GPT-6 Astra（保留档）<br/>UI/UX · 视觉 · 前端深度设计"]
+    REVIEW["🔬 GPT-6 Astra（保留档）<br/>复杂设计/前端架构独立评审"]
+    FAST["⚡ DeepSeek V4.1 Flash<br/>默认执行档：压缩证据包 · 批量事实"]
+    WRITE["🛠️ DeepSeek V4.1 Flash<br/>派工包内的有界实现"]
+    LEAF["⚙️ 默认执行档<br/>guard/smoke/refresh/prod-env 叶子执行 · 机械文档 · 提交准备"]
+    MERGE["🧩 Owner<br/>复核真实 diff · 决策 · 集成 · Gate"]
 
     TASK --> KIND
-    KIND -->|"定界、规划、调试、跨层实施"| SOL
+    KIND -->|"定界、规划、跨边界设计、最终综合"| SOL
     KIND -->|"新 UI、复杂交互、视觉基线"| UI
     KIND -->|"冻结候选的深度挑战"| REVIEW
-    KIND -->|"大量独立读取或低延迟证据"| FAST
+    KIND -->|"需要独立事实或压缩证据包"| FAST
     KIND -->|"路径互斥且验收明确"| WRITE
+    KIND -->|"门禁/刷新/冒烟执行或机械文档"| LEAF
     UI --> MERGE
     REVIEW --> MERGE
     FAST --> MERGE
     WRITE --> MERGE
+    LEAF --> MERGE
     SOL --> MERGE
 
     classDef input fill:#fff4cc,stroke:#9a6b00,color:#3d2b00;
@@ -205,26 +208,29 @@ flowchart TB
     class TASK,KIND input;
     class SOL owner;
     class UI,REVIEW astra;
-    class FAST,WRITE deepseek;
+    class FAST,WRITE,LEAF deepseek;
     class MERGE merge;
 ```
 
 | 模型 | 默认拥有 | 最适合 | 默认不做 | 何时升级权限 |
 | --- | --- | --- | --- | --- |
-| GPT-5.6 Sol | outcome、规划、通用实施、调试、Gate 选择、最终综合 | 需要连续理解范围、代码、工具和验证的主链 | 可独立并行的低价值批量读取 | 默认即为 Owner；生产写仍需用户授权 |
+| GPT-5.6 Sol（保留档） | outcome、规划、跨边界设计与状态冻结、集成复核、最终综合 | 需要连续理解范围、合同、集成和验证的主链 | 已能写成派工包的常规实施；可交给只读角色的批量读取 | 需要 GPT 主持时显式选择或绑定；生产写仍需用户授权 |
 | GPT-6 Astra | UI/UX 深度设计、复杂交互、前端架构/视觉评审、高风险设计挑战 | 需要深思、视觉证据、Computer Use 或跨边界反例的专家任务 | 通用实施 Owner、无问题导向的全仓准备、宽泛构建与测试 | 只有用户明确覆盖，并给定结果、范围、预算和停止条件 |
-| DeepSeek V4.1 Flash | 高速侦察、批量事实、独立模型族挑战、有界实现 | 大量独立读取、低延迟反馈、路径互斥的小型改动 | 最终综合、模糊跨边界设计、migration 或生产写 Owner | Provider/工具/恢复通过验证；写路径互斥；Sol 复核 diff 和目标测试 |
+| DeepSeek V4.1 Flash（默认执行档） | 侦察与压缩证据包、批量事实、独立模型族挑战、派工包内的有界实现、`guard`/`smoke`/`refresh`/`prod-env` 叶子执行、机械文档与提交准备 | 大量独立读取、低延迟反馈、路径互斥且验收明确的工作；上下文窗口足以吞下派工包与目标文件 | 最终综合、跨边界设计与状态冻结、migration 或生产写 Owner | Provider/工具/恢复通过验证；派工包给出互斥写集合、内联合同和目标验证；Owner 复核真实 diff |
 
-这里不是按排行榜排职位。OpenAI 官方把 Astra 定位为最高能力模型，但也明确提示它可能输出更详尽、对 Skill 指令更敏感，并在小任务上选择过宽测试；你在真实工作中已经观察到通用实施的准备工作膨胀，所以它在本组合中降为 specialist。Sol 的官方定位是复杂专业工作的旗舰模型，结合你的实测，适合作为规划和实施 Owner。DeepSeek 官方强调 V4.1 Flash 的速度、吞吐、Agent 和多模态能力，因此适合扩大并行证据带宽，但最终责任仍留给 Sol。
+分工按两档：保留角色（Sol 与 Astra）只做分析、设计、评审和最终综合；其余工作默认走执行档（DeepSeek），末端机械车道（提交、推送、查收据、机械校准）不要求额外角色绑定。这样 GPT 档位只在真正需要分析判断时消耗。
 
-在 `/model` 的 Roles 视图配置四个自定义别名：
+这里不是按排行榜排职位。OpenAI 官方把 Astra 定位为最高能力模型，但也明确提示它可能输出更详尽、对 Skill 指令更敏感，并在小任务上选择过宽测试；你在真实工作中已经观察到通用实施的准备工作膨胀，所以它在本组合中降为 specialist。Sol 的官方定位是复杂专业工作的旗舰模型，结合你的实测，适合作为规划、跨边界设计与集成复核 Owner；能写成派工包的常规实施下沉到执行档。DeepSeek 官方强调 V4.1 Flash 的速度、吞吐、Agent 和多模态能力，因此适合承担执行带宽，但最终责任仍留给 Owner。
 
-| OMP 角色别名 | 指向 |
-| --- | --- |
-| `plan_owner` | GPT-5.6 Sol |
-| `ui_deep` | GPT-6 Astra |
-| `deep_review` | GPT-6 Astra |
-| `fast_worker` | DeepSeek V4.1 Flash |
+在 `/model` 的 Roles 视图配置五个自定义别名（四个保留/执行角色，加一个决定未绑定工作落点的 `default`）：
+
+| OMP 角色别名 | 指向 | 用途 |
+| --- | --- | --- |
+| `plan_owner` | GPT-5.6 Sol | 保留：规划与派工包 |
+| `ui_deep` | GPT-6 Astra | 保留：UI/前端深度设计 |
+| `deep_review` | GPT-6 Astra | 保留：深度只读评审 |
+| `fast_worker` | DeepSeek V4.1 Flash | 执行：侦察与派工包内的有界实现 |
+| `default` | GPT-5.6 Sol | 保留：主 Session 默认模型与未绑定回退 |
 
 在配置文件中的持久化形状大致如下；尖括号位置必须从 `/model` 的实际可用模型中选择，不能照抄：
 
@@ -234,7 +240,10 @@ modelRoles:
   ui_deep: "<实际 Astra selector>"
   deep_review: "<实际 Astra selector>"
   fast_worker: "<实际 DeepSeek selector>"
+  default: "<同一个 DeepSeek selector>"
 ```
+
+执行档不靠 `default` 落实：`default` 指向保留档，决定主 Session 默认模型；执行工作由 `@fast_worker` 和 Profile 的 `task.agentModelOverrides`（泛型 `task`/`scout`/`sonic`）绑定，因为**未绑定的子角色会继承父 Session 模型**。selector 与覆盖项的声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`、`ompTaskAgentModelOverrides`，可用 `python3 scripts/check_model_routes.py` 一次性核对配置漂移、agent 绑定和运行时真实解析的用量。
 
 安装器会投影五个可直接被 `task` 调用的 OMP Agent：
 
@@ -242,7 +251,9 @@ modelRoles:
 - `team-os-ui-designer`：Astra，只读 UI/UX 和视觉设计。
 - `team-os-deep-reviewer`：Astra，只读深度评审。
 - `team-os-fast-scout`：DeepSeek，只读高速证据。
-- `team-os-bounded-worker`：DeepSeek，只修改派工明确列出的互斥路径。
+- `team-os-bounded-worker`：DeepSeek，只按派工包修改互斥路径，越界或合同不全时停止回报。
+
+每个需要动手或取证的派工先写自足派工包：仓库绝对路径与工作目录、写集合、禁止读取、按顺序的变更步骤、内联合同、验收命令、停止条件和输出格式（骨架见 Team OS `templates/worker-pack.md`）。下游不从设计正文反推意图；保留角色不做原始探索，改由只读角色返回带文件/行锚点的压缩证据包。
 
 新 Profile 尚未登录 Provider 时，`omp models` 会返回空，因此 Team OS 安装器只投影角色别名，不猜测 API、OpenRouter 或其他 Provider 的 selector。完成登录和映射后，第一次分派每种 Agent 时按 `Alt+A` 检查 resolved model；若发生错误 fallback，停止该 worker 并先修正映射。
 
@@ -285,8 +296,8 @@ flowchart LR
 | Codex OAuth | `~/.cli-proxy-api/` | 由 CLIProxyAPI 自行刷新；不要复制到项目 |
 | 本地下游 Key | macOS 钥匙串 `team-os-cliproxyapi-local-key` | OMP 请求代理时使用，不在文档明文保存 |
 | OMP Provider | Profile 的 `models.yml` | 使用 `openai-responses` 并动态发现 `/v1/models` |
-| GPT 角色 | `cliproxyapi/gpt-5.6-sol`、`cliproxyapi/gpt-6-astra` | Sol 为 default/plan，Astra 为 UI/review |
-| DeepSeek 角色 | `deepseek/deepseek-v4.1-flash` | `/login deepseek` 后供 `fast_worker` 使用 |
+| GPT 角色（保留档） | `cliproxyapi/gpt-5.6-sol`、`cliproxyapi/gpt-6-astra` | 绑定 `plan_owner`/`ui_deep`/`deep_review`；不再占用 `default` |
+| DeepSeek 角色 | `deepseek/deepseek-flash` | `/login deepseek` 后供 `fast_worker` 使用；该 selector 对应 DeepSeek V4.1 Flash |
 
 安装或重新授权：
 
@@ -308,9 +319,9 @@ DeepSeek Key 不要发到聊天或写入 Team OS。从 OMP 新 Session 运行 `/
 
 当前不安装 `@router-for-me/pi-cliproxyapi-provider`。该插件 1.4.15 与 OMP 18.1.21 存在 Codex protocol 加载问题；采用 OMP 原生 `models.yml` 更短、更稳定。只有未来版本实际通过模型发现、流式响应、工具调用和 Session 恢复验证后才重新准入。
 
-### 3.6 备用聚合路由 TeamoRouter 怎样接入
+### 3.6 聚合路由 TeamoRouter 怎样接入
 
-CLIProxyAPI 只覆盖两个 Codex OAuth 角色，DeepSeek 走官方 Key。需要 Claude、Gemini、GLM 等其它模型族，或需要在 Codex OAuth 不可用时保留一条独立上游时，可以在同一 Profile 增加第四个聚合 Provider。它只扩展可选模型集合，不改变 3.4 节的默认三模型路由。
+CLIProxyAPI 只覆盖两个 Codex OAuth 角色，DeepSeek 走官方 Key。需要 Claude、Gemini、GLM 等其它模型族，或需要在 Codex OAuth 不可用时保留一条独立上游时，可以在同一 Profile 增加聚合 Provider。它只扩展可选模型集合，不改变 3.4 节的职责分档。
 
 TeamoRouter 是 OpenAI 兼容的聚合网关，同一个 Key 可调用 GPT、Claude、Gemini、DeepSeek、GLM 和 Grok 族模型。它属于本机 Provider 接线，事实源是 Profile 的 `agent/models.yml`，不写入 Team OS 规则和项目仓库。
 
@@ -357,7 +368,7 @@ omp --profile team-os --model teamorouter/gpt-5.6-sol
 3. **发现的模型可能缺少上下文与价格元数据。** 网关型 discovery 默认按“本地未知”处理；需要精确档位时，在同一 Provider 下用 `modelOverrides.<model-id>` 补 `contextWindow` / `maxTokens`，id 必须与 `/v1/models` 返回完全一致。
 4. **模型可用不等于获得授权。** 新增 Provider 只影响模型选择器；生产写、外部消息、删除数据与凭据操作仍然只由用户授权和项目规则决定。
 
-当前状态：接线已落地，`models.yml` 解析正常，既有 `cliproxyapi`（12 个模型）与 `deepseek`（4 个模型）清单未受影响；模型发现、流式响应、工具调用和 Session 恢复**尚未验收**，因此它目前只是可用候选，不在默认三模型路由内。
+当前状态：`modelRoles` 的五个角色都已指向 `teamorouter/*` selector，声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`；`cliproxyapi`（12 个模型）与 `deepseek`（4 个模型）清单继续保留，可作为独立上游或回退候选。改动映射后用 `python3 scripts/check_model_routes.py` 核对漂移，并在 Agent Hub 复核 worker 的实际解析模型。
 
 ## 4. 一条完整的日常主链
 
@@ -423,7 +434,7 @@ flowchart LR
 
 ### 5.6 明确启用多 Agent
 
-> 这次允许使用 OMP task worker。请先给出最小协作拓扑，只并行独立事实、互斥写集合或高风险独立验证；每个 worker 写清目标、非目标、输入、输出、写集合、验证和停止条件。并发上限 12 只是容量，不要求占满；由 Owner 在 Agent Hub 观察、纠偏并最终综合。
+> 这次允许使用 OMP task worker。请先给出最小协作拓扑，只并行独立事实、互斥写集合或高风险独立验证；每个 worker 先写自足派工包（绝对路径、写集合、禁止读取、变更步骤、内联合同、验收命令、停止条件），并发上限 12 只是容量，不要求占满；派工后在 Agent Hub 核对 resolved model，由 Owner 复核真实 diff、纠偏并最终综合。
 
 如果你希望 OMP 主动强化编排，可以在请求中加入 `orchestrate`；它是 OMP 的魔法关键词，不是 Team OS 的新流程。仍然要给出边界和完成条件。
 
@@ -449,11 +460,11 @@ flowchart LR
 
 ### 5.12 提交和推送
 
-> 提交并推送当前稳定变更。只复核既有变更范围、敏感风险和适用门禁证据；按仓库分别 stage、commit、push，不借提交任务重新设计或修改无关文件。
+> 提交并推送当前稳定变更。这是末端机械车道，不需要额外绑定角色；只复核既有变更范围、敏感风险和适用门禁证据，按仓库分别 stage、commit、push，不借提交任务重新设计或修改无关文件。
 
 ### 5.13 明确使用三模型组合
 
-> 本次使用 Team OS 三模型默认路由：GPT-5.6 Sol 持有 outcome、规划、通用实施和最终综合；只有需要 UI/UX、视觉、复杂交互或前端架构深度评审时才调用 GPT-6 Astra，并限制为指定问题的设计/评审证据；独立仓库侦察、批量事实或写集合互斥的小型实现可交给 DeepSeek V4.1 Flash。所有 worker 不得扩大范围、选择宽泛 Gate 或改变 owner。
+> 本次使用 Team OS 默认路由：GPT-5.6 Sol 与 GPT-6 Astra 是保留档，只做 outcome、规划、跨边界设计、UI/前端深度设计、深度评审和最终综合；其余侦察、取证、有界实现、门禁/冒烟/刷新/生产事实叶子执行、机械文档和提交准备默认走 DeepSeek V4.1 Flash 执行档，末端车道不绑定角色。派工先写自足派工包，worker 不得越出写集合、不得扩大范围或选择宽泛 Gate，也不得让执行档静默升级到 GPT 档位；Owner 复核真实 diff 后集成。
 
 ## 6. Session、恢复与一次性执行
 
@@ -619,6 +630,7 @@ flowchart TB
 - 多个只读研究 worker 可以并发。
 - 多个实现 worker 只有在写集合互斥时才能并发。
 - 构建、Docker、Helm、浏览器端口和生产目标属于共享资源，必须分波或加锁。
+- 每次派工先给自足派工包；worker 只读包内允许的范围，不重读设计正文，也不先整份读文件再补区间。
 - Worker 完成后由 Owner 检查实际 diff、命令输出和收据，不能只接收“完成”摘要。
 - 无独有证据收益的 worker 应移除；同一文件、同一设计决策的反复协商通常比 solo 更慢。
 
@@ -730,7 +742,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 1. **规则没有生效**：确认从目标项目目录启动；运行 `config path` 和安装器 `--check`；新建 Session。
 2. **Computer 不可用**：确认 `computer.enabled=true`，运行 `/computer status`，检查 macOS 屏幕录制与辅助功能权限，然后新建 Session。
 3. **并发没有跑满**：这是正常行为。`maxConcurrency=12` 是上限；只有存在可独立工作时 Owner 才会调用 worker。
-4. **模型角色不对**：用 `/model` 的 Roles 视图检查角色到实际模型的映射，并在 Agent Hub 查看 worker 的 resolved model。
+4. **模型角色不对**：用 `/model` 的 Roles 视图检查角色到实际模型的映射，并在 Agent Hub 查看 worker 的 resolved model；也可运行 `python3 scripts/check_model_routes.py` 一次性核对 catalog 与 Profile 的漂移、agent 别名绑定和真实用量分布。
 5. **恢复后重复规划**：提醒它读取 `.work` 的 outcome、授权、实际变更、有效收据和剩余验收；不要只提供旧 Transcript。
 6. **上下文过长**：先把动态事实落到 `.work`，再用 `/compact`；需要保留摘要并切到新 Session 时用 `/handoff`。
 7. **流式响应或缓存异常**：使用 `/fresh` 重置 Provider 流状态；它不会清空 Transcript，也不会新建 Session。
@@ -748,6 +760,8 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 | 协作方法 | `workflows/adaptive-collaboration.md` | 定义 solo/N 个协作单元和协调成本 | 并行判定与拓扑原则变化时 |
 | 对话到执行 | `workflows/conversational-orchestration.md` | 把自然语言讨论编译为结果合同和执行路径 | “按结论推进”的语义变化时 |
 | Harness 合同 | `workflows/harness-contract.md` | 统一检查上下文、权限、恢复、工具、模型与证据 | 接入新 Agent 产品或扩展时 |
+| 上下文与派工 | `workflows/context-economy.md` | 读取纪律、派工包、证据包、执行模型分档与记账口径 | 上下文成本或派工方式变化时 |
+| 派工包骨架 | `templates/worker-pack.md` | 自足派工包的字段与输出格式 | 派工反复缺字段或越界时 |
 | 能力语义 | `roles/capabilities.yaml` | 定义 owner、fast、review、vision、slow 等能力需求 | 角色证据需求变化时 |
 | 模型目录 | `models/catalog.yaml` | 记录模型能力状态与验证结论，不做永久品牌绑定 | 新模型完成真实任务验证后 |
 | 结果模板 | `templates/outcome-card.yaml` | 定义 outcome、非目标、授权、验收与恢复字段 | 结果合同缺少稳定字段时 |
@@ -758,7 +772,7 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 | OMP 适配器 | `omp/AGENTS.md` | OMP Session 自动加载的用户级短内核源文件 | OMP 的默认工作习惯变化时 |
 | OMP 常驻规则 | `omp/RULES.md` | 无论任务类型都必须遵守的短安全规则 | OMP 常驻安全边界变化时 |
 | OMP 使用说明 | `omp/README.md` | Profile 安装、配置和启动的精简入口 | OMP 配置基线变化时 |
-| OMP 专家 Agent | `omp/agents/*.md` | 把模型角色别名映射为有界 planner、UI、review、scout 和 write worker | 三模型职责或输出合同变化时 |
+| OMP 专家 Agent | `omp/agents/*.md` | 把模型角色别名映射为保留档 planner/UI/review 与执行档 scout/pack-worker | 角色职责、派工包或输出合同变化时 |
 | 能力矩阵 | `runtimes/capabilities.yaml` | 声明各 Harness 原生、需适配或不可用的能力 | 增减 Browser、Computer、Subagent 等能力时 |
 | 投影安装器 | `scripts/install_runtime.py` | 原子、可校验地把源文件安装到各运行时目录 | 新运行时或受管文件集合变化时 |
 | 日常手册 | `docs/使用手册/01-*`、`02-*`、`03-*` | 给人看的拓扑、话术、命令和使用边界；`03-*` 专门覆盖 OMP 连接社区 Figma MCP Bridge | 日常入口或操作方式变化时 |

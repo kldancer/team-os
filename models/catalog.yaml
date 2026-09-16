@@ -26,24 +26,38 @@ activePortfolio:
     outcomeOwner: gpt-5.6-sol
     planningOwner: gpt-5.6-sol
     finalSynthesis: gpt-5.6-sol
-    generalImplementation: gpt-5.6-sol
+    crossBoundaryDesign: gpt-5.6-sol
+    generalImplementation: deepseek-flash
+    leafExecution: deepseek-flash
     uiDeepDesign: gpt-6-astra
     frontendDeepReview: gpt-6-astra
     architectureChallenge: gpt-6-astra
-    fastScout: deepseek-v4.1-flash
-    boundedParallelImplementation: deepseek-v4.1-flash
-    independentFamilyReview: deepseek-v4.1-flash
+    fastScout: deepseek-flash
+    boundedParallelImplementation: deepseek-flash
+    independentFamilyReview: deepseek-flash
+  reservedRoles:
+    - outcomeOwner
+    - planningOwner
+    - crossBoundaryDesign
+    - uiDeepDesign
+    - frontendDeepReview
+    - finalSynthesis
+  defaultExecutionRule: 保留角色由 @plan_owner/@ui_deep/@deep_review 绑定；执行档由 @fast_worker 与 task.agentModelOverrides 落实；default 角色保留给主 Session 与未绑定回退，指向保留档，不得把执行工作带回 GPT
+  ompTaskAgentModelOverrides:
+    task: "@fast_worker"
+    scout: "@fast_worker"
+    sonic: "@fast_worker"
   ompRoleAliases:
     plan_owner: gpt-5.6-sol
     ui_deep: gpt-6-astra
     deep_review: gpt-6-astra
-    fast_worker: deepseek-v4.1-flash
+    fast_worker: deepseek-flash
   ompResolvedSelectors:
     default: cliproxyapi/gpt-5.6-sol
     plan_owner: cliproxyapi/gpt-5.6-sol
     ui_deep: cliproxyapi/gpt-6-astra
     deep_review: cliproxyapi/gpt-6-astra
-    fast_worker: deepseek/deepseek-v4.1-flash
+    fast_worker: teamorouter/deepseek-flash
   providerRoutes:
     openaiModels: local-loopback-cliproxyapi-over-codex-oauth
     deepseekModel: direct-deepseek-api-key
@@ -56,12 +70,15 @@ activePortfolio:
         local: preferred-for-planning-and-main-implementation
       strengths:
         - scope-and-plan-synthesis
-        - end-to-end-implementation
+        - cross-boundary-design-and-state-freeze
+        - ambiguous-implementation-that-cannot-yet-be-written-as-a-worker-pack
         - tool-use-and-debugging-continuity
-        - evidence-integration-and-final-report
+        - integration-review-and-final-report
       avoid:
+        - routine-bounded-implementation-with-a-complete-worker-pack
         - low-value-bulk-read-that-a-fast-worker-can-return-as-bounded-evidence
-      handoffContract: owns-outcome-diff-gates-and-final-synthesis
+        - exploring-source-or-documents-instead-of-consuming-a-scout-pack
+      handoffContract: owns-outcome-plan-worker-packs-integration-review-and-final-synthesis
     gpt-6-astra:
       admission: specialist-only-by-default
       evidence:
@@ -79,34 +96,43 @@ activePortfolio:
         - repository-wide-preparation-without-an-explicit-evidence-question
         - broad-build-or-test-selection
       requiresExplicitOverrideFor: [outcome-owner, general-implementation, production-write]
-      handoffContract: returns-decisions-findings-acceptance-and-evidence-to-sol-owner
-    deepseek-v4.1-flash:
+      handoffContract: returns-decisions-findings-acceptance-and-evidence-to-current-owner
+    deepseek-flash:
       admission: fast-specialist-with-bounded-write
+      runtimeModelId: deepseek-flash
+      displayName: DeepSeek V4.1 Flash
+      runtimeContextWindow: 1000000
       evidence:
         official: high-throughput-efficient-agentic-and-native-multimodal
         local: omp-provider-and-project-write-gates-still-required
       strengths:
-        - fast-repository-scouting
+        - fast-repository-scouting-and-compressed-evidence-packs
         - bounded-fact-research
         - batch-classification-and-mechanical-analysis
         - independent-model-family-challenge
-        - mutually-exclusive-bounded-implementation
+        - pack-driven-bounded-implementation
+        - leaf-executor-runs-gates-smoke-refresh-production-preflight
+        - mechanical-doc-updates-and-commit-preparation
+        - model-token-and-context-accounting
       avoid:
         - final-outcome-synthesis
         - ambiguous-cross-boundary-design-ownership
+        - writing-outside-the-worker-pack-write-set
         - migration-or-production-write-without-explicit-authorization-and-gates
       promotionGate:
         - provider-and-tool-resolution-proven
         - session-stop-and-resume-proven
         - assigned-write-set-is-exclusive
         - target-tests-and-diff-reviewed-by-owner
-      handoffContract: returns-bounded-evidence-or-patch-and-target-validation-to-sol-owner
+      handoffContract: returns-bounded-evidence-or-patch-and-target-validation-to-current-owner
   routingRules:
-    - one-outcome-has-one-sol-owner-by-default
-    - astra-is-read-only-specialist-unless-write-is-explicitly-assigned
-    - deepseek-write-requires-exclusive-paths-and-target-validation
-    - workers-do-not-expand-scope-or-select-broad-gates
-    - fallback-never-silently-changes-owner
+    - one-outcome-has-one-owner
+    - reserved-roles-are-explicitly-bound-and-never-default
+    - non-reserved-work-runs-on-the-runtime-default-model
+    - terminal-mechanical-lanes-commit-push-doc-fix-need-no-role-binding
+    - every-dispatch-carries-a-self-sufficient-worker-pack
+    - workers-never-exceed-the-worker-pack-write-set
+    - fallback-never-silently-changes-owner-or-upgrades-to-a-gpt-tier
 candidates:
   - id: google-gemini
     models: [gemini-3.7-flash, gemini-cli-auto]
@@ -115,10 +141,10 @@ candidates:
     runtimeStatus: not-installed-by-team-os
     admission: real-task-evidence-required
   - id: deepseek-v4
-    models: [deepseek-v4-pro, deepseek-v4.1-flash]
-    intendedRoles: [independent-reasoning-reviewer, cost-sensitive-batch-specialist]
+    models: [deepseek-flash, deepseek-v4-pro]
+    intendedRoles: [leaf-executor, pack-driven-implementation, evidence-scout, cost-sensitive-batch-specialist]
     distinctChannels: [independent-model-family, open-weights-option, million-token-context]
-    runtimeStatus: omp-role-binding-pending-provider-login
+    runtimeStatus: omp-role-binding-active-as-default-and-fast-worker
     admission: fast-specialist-active-owner-promotion-requires-real-task-evidence
   - id: xai-grok
     models: [grok-4.6]

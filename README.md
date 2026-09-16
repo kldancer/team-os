@@ -16,7 +16,7 @@
 3. 默认由当前会话端到端交付；只有独立证据、互斥写集合或高风险独立验证足以覆盖协调成本时才创建协作任务。
 4. 实现、验证和证据遵守项目覆盖层。提交、远端、生产和破坏性操作仍须由用户明确授权。
 
-安装到运行时的只是短内核和按需 Skill，完整 Team OS 文档不会自动塞入每个任务上下文。Codex、Pi、OMP 的入口分别见 [`codex/README.md`](codex/README.md)、[`pi/README.md`](pi/README.md) 和 [`omp/README.md`](omp/README.md)。UI 设计与前端交付的方法见 [`workflows/ui-design-frontend.md`](workflows/ui-design-frontend.md)，不替代项目的设计系统和交付流程。
+安装到运行时的只是短内核和按需 Skill，完整 Team OS 文档不会自动塞入每个任务上下文。Codex、Pi、OMP 的入口分别见 [`codex/README.md`](codex/README.md)、[`pi/README.md`](pi/README.md) 和 [`omp/README.md`](omp/README.md)。UI 设计与前端交付的方法见 [`workflows/ui-design-frontend.md`](workflows/ui-design-frontend.md)，不替代项目的设计系统和交付流程。派工包、读取纪律与执行模型分档见 [`workflows/context-economy.md`](workflows/context-economy.md)，派工包骨架见 [`templates/worker-pack.md`](templates/worker-pack.md)；模型路由与运行绑定的核对入口是 [`scripts/check_model_routes.py`](scripts/check_model_routes.py)。
 
 第一次使用或需要回顾整条链路时，Codex 用户见 [`Codex + Team OS 日常工作流使用手册`](docs/使用手册/01-Codex-Team-OS日常工作流使用手册.md)，Pi/OMP 用户见 [`Pi/OMP + Team OS 使用手册`](docs/使用手册/02-Pi-OMP-Team-OS日常工作流使用手册.md)。使用社区 Bridge 连接本地 Figma 画布时，见 [`OMP + Figma MCP Bridge 从 0 到 1 使用手册`](docs/使用手册/03-OMP-Figma-MCP-Bridge从0到1使用手册.md)。
 

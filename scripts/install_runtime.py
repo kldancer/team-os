@@ -20,6 +20,10 @@ COMMON_FILES = {
     "skills/team-os-plan/references/module-implementation-plan.md": ROOT
     / "templates"
     / "module-implementation-plan.md",
+    "skills/team-os-plan/references/worker-pack.md": ROOT / "templates" / "worker-pack.md",
+    "skills/team-os-plan/references/context-economy.md": ROOT
+    / "workflows"
+    / "context-economy.md",
     "skills/team-os-retrospective/SKILL.md": ROOT
     / "skills/team-os-retrospective/SKILL.md",
     "skills/team-os-ui/SKILL.md": ROOT / "skills/team-os-ui/SKILL.md",
