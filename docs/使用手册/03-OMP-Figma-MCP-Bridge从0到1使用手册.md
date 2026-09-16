@@ -338,65 +338,52 @@ Release 的 Plugin/Server，并且 `/ping` 与 MCP 测试通过，就不要仅�
 
 ## 7. 日常可直接复制的说法
 
-### 7.1 只读分析当前设计
+只有四个场景；截图取证与跨文件对照并入 A，新建隔离页面并入 D。
+
+| 场景 | 何时用 | 画布权限 |
+| --- | --- | --- |
+| A 读懂当前设计 | 要结构、Token 和视觉证据 | 只读 |
+| B 按设计实现前端 | 把设计落成项目代码 | 读 Figma、写仓库 |
+| C 核对还原度 | 查已有页面与设计的差异 | 全程只读 |
+| D 在 Figma 里改图 | 改文案或建隔离页验证方案 | 单写者 |
+
+读取顺序见第 8 节，单写者与角色分工见第 9 节，证据落点见第 11 节。多文件先 `list_files` 取 `fileKey` 并全程显式携带，不写进文档或 Git。
+
+### 7.1 A 读懂当前设计
 
 ```text
-使用 Figma Bridge 读取当前 selection，先结构后截图。
-只总结信息架构、组件层级、Auto Layout、Token 和交互状态；不要写画布或代码。
+读取当前 selection：get_selection → get_design_context(depth=3)，需要视觉证据再 get_screenshot。
+只输出信息架构、组件层级、Auto Layout、Token 和交互状态，不写画布或代码。
 ```
 
-### 7.2 从设计实现前端
+跨文件时先分别取设计系统与产品页面的 `fileKey`，先读设计系统的组件、变量和样式，再读页面；不跨文件写入。截图落盘前先报目标目录、文件名和数量。
+
+### 7.2 B 按设计实现前端
 
 ```text
-读取当前 Figma selection，并对照本仓库现有组件、路由和设计 Token。
-先列出可复用组件、真实差异和最小实现范围；确认后由当前 owner 实施。
-Figma 是设计事实源，项目组件与业务状态合同仍以项目权威为准。
+读取当前 selection，对照本仓库组件、路由和设计 Token，先列出可复用组件、真实差异和最小实现范围；
+确认后实施并用页面真实入口验收。项目组件与业务合同以项目权威为准。
 ```
 
-### 7.3 对照代码检查还原度
+### 7.3 C 核对还原度（只读）
 
 ```text
-读取当前 Figma selection 的结构和截图，再打开本地页面真实入口。
-按布局、字体、颜色、间距、组件状态和响应式逐项比较，只报告可观察差异，
-不要用主观评分代替证据。
+读取当前 selection 的结构和截图，打开本地页面入口，按布局、字体、颜色、间距、组件状态和响应式
+逐项比较，只报告可观察差异，不给主观评分。
 ```
 
-### 7.4 修改一段文字
+### 7.4 D 在 Figma 里改图（单写者）
 
 ```text
-只操作 <fileKey> 中我当前选中的单个 Text 节点。
-先 get_selection 报告 nodeId、当前文本和字体，等我确认后再用
-set_text_content 改成“<新文本>”；不要改变样式、位置或其他节点。
-修改后重新读取该节点验证。
+只操作 <fileKey> 中当前选中的单个 Text 节点：先报告 nodeId、文本和字体，确认后用
+set_text_content 改为“<新文本>”，不动样式、位置和其他节点，改后读回验证。
 ```
 
-### 7.5 创建新页面方案
-
-```text
-只在 <fileKey> 中创建一个新 Page“方案 B”，不要修改现有页面。
-由当前 owner 保持单写；UI designer 可以先只读输出设计基线，
-最终写入按 Page → Frame → Text/Shape 的顺序执行，每一阶段读回验证。
-```
-
-### 7.6 多文件对照
-
-```text
-先调用 list_files，分别确定“设计系统”和“产品页面”的 fileKey。
-只读设计系统中的组件、变量和样式，再读取产品页面当前 selection；
-不要省略 fileKey，不要跨文件执行写操作。
-```
-
-### 7.7 导出视觉证据
-
-```text
-对当前 selection 调用 get_screenshot，只导出选中 Frame，不导出整页。
-如果需要落盘，先报告目标目录、文件名和预计数量，经确认后再调用
-save_screenshots；不要把 base64 或临时图片写入长期文档。
-```
+新建隔离页面换用：先 `get_metadata`，按 Page → Frame → Text/Shape 逐阶段写入并读回，不改动、删除或覆盖现有节点。
 
 ## 8. 工具选择顺序
 
-不要一上来读取整份 Document。推荐顺序：
+这是第 7 节读取顺序的展开。不要一上来读取整份 Document。推荐顺序：
 
 ```text
 list_files
@@ -427,10 +414,10 @@ OS 在这条链路中固定采用单写者：
 
 | 责任 | 推荐模型/Agent | 画布权限 |
 | --- | --- | --- |
-| outcome、范围、写入与最终验收 | GPT-5.6 Sol 主 Session | 唯一写入者 |
-| UI/UX 深度设计和视觉评审 | `team-os-ui-designer` / GPT-6 Astra | 默认只读 |
-| 快速枚举节点、样式和变量 | DeepSeek V4.1 Flash 有界 worker | 只读且固定 `fileKey` |
-| 高风险设计复核 | `team-os-deep-reviewer` | 只读挑战 |
+| outcome、范围、写入与最终验收 | 分析档 Kimi K3 主 Session | 唯一写入者 |
+| UI/UX 深度设计、视觉判断与还原度验收 | `team-os-ui-designer` / GLM-5.3-Flash | 默认只读 |
+| 快速枚举节点、样式和变量、批量读取 | `team-os-fast-scout` / DeepSeek V4.1 Flash | 只读且固定 `fileKey` |
+| 高风险设计复核（异厂挑战） | `team-os-deep-reviewer` / GLM-5.3 | 只读挑战 |
 
 不要让多个 worker 同时调用 `create_*`、`set_*`、`reparent_nodes` 或
 `delete_nodes`。需要方案多样性时，先让各模型只读提出方案，由主 Session
@@ -492,6 +479,8 @@ OMP 或换模型绕过 Figma 自身权限。
 ```
 
 ## 13. 安全和回退
+
+第 7 节的共同纪律是日常简版，这里只列强制约束与回退动作：
 
 1. Bridge 只监听 `127.0.0.1:1994`，不要通过端口转发、反向代理或公网暴露。
 2. Plugin 可以读取当前 Figma 文件；启用写工具后还可以修改设计，不要在不受信
