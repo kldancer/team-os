@@ -85,7 +85,23 @@
 
 可核验指标：`scripts/check_role_routing.py` 输出的主会话执行类调用占比目标 **<30%**，`planningSplit` 比值 ≥1，`visionTierDispatches` 与 `judgementTierDispatches` 在窗口内非零。
 
+**执行方式（机制，不靠记忆）**：
+
+1. 规划完成后立刻用 `python3 scripts/route_work.py --task <id> --type <implement|research|ui|plan|review|ops> --outcome "<一句话结果>" --paths <改动路径> --cwd <仓库>` 生成分档派工清单与派工包（`.work/dispatch/`）。脚本按改动路径判定：带 UI 路径自动加视觉档，`ops`/远端路径加 prod-env preflight，`plan` 加研判档起草。`juspctl plan` 的输出里已经带好这条命令（`dispatchHint`）。
+2. 任务收尾用 `python3 .agents/scripts/juspctl.py close --task <id> …`，它会先跑 `check_role_routing.py --task <id> --gate`：**blocking 违规（订阅档主会话直连生产、UI 未过视觉档）直接阻断 close**，必须整改或由负责人显式 `--skip-role-routing` 覆盖；advisory（自执行占比、上下文中位、规划配比、1M 晋升）只报告不阻断。
+3. 归因口径：`--task` 把统计限制在"提及该任务 id 的会话"，再收敛到首次提及到末次提及之间的调用，因此长会话里别的任务不会被算到本任务头上。
+
 回退链写在 agent 定义的 `model` 数组里，并登记在 `models/catalog.yaml` 的 `ompAgentFallbacks`：**同一条链只能落在同一计费档**（订阅或按量），跨档切换只能由负责人在派工前显式决定并披露。执行角色的写入仍由负责人复核真实 diff 与集成入口。
+
+### 4.3 失败预算与停线（复盘结论，2026-09-17）
+
+远端或容器类长任务的典型失败模式：同一验收点反复失败，owner 和 worker 换一个修复假设继续推，直到用户叫停。规则：
+
+1. **失败预算**（事实在 `models/catalog.yaml` 的 `activePortfolio.dispatchPolicy.failureBudget`，默认 2 轮；生成器与门禁都读它，任何一侧都不得自带字面量）。同一验收点连续达到预算轮数依然 FAIL，或新证据表明**阻断根因不在本包写集合内**，立即停线：worker 回传 `STOP: <原因>` 并停手，owner 在 30 分钟内产出重定界决策（改验收 / 改 owner / 升级用户），**禁止换下一个假设继续重建或复跑**。
+2. **结构化标记**是门禁的输入：worker 每轮必须回传 `VERDICT: <验收点> PASS|FAIL`（PASS 附证据引用），停线回传 `STOP:`。`check_role_routing.py --gate` 据此判定 `failure-budget-exceeded`（blocking），并把 `stop-marker-recorded`、长 worker 缺 `VERDICT` 的 `worker-cadence-missing` 作为 advisory。
+3. **等待不算推进**：owner 的 hub `wait` 占其调用 ≥35% 即报 `owner-wait-share-high`；等待期间应推进规划、证据或裁决，而不是轮询。
+4. **验收不得静默降级**：绕过核心验收（例：把"非 root"改成 root 开关）必须显式改 outcome/acceptance 并重出机器计划（新 `planId`），否则收尾的收据门禁会因计划未执行而拒绝关闭。
+5. **计划必须参与执行**：`juspctl close` 校验本任务适用的每一级 Gate 都有对应 `planId` 的通过收据；`juspctl health` 输出 `stalledTasks`（长时间停在 planned/ready 且零事件零收据）与 `unverifiedDeliveries`（任务未闭合却已提交实现），把"计划不参与执行"和"合同上线、验证留白"变成可报警事实。
 
 模型不得静默改变负责人：绑定缺失、回退到非预期 Provider、跨档回退或实际模型与绑定不一致时，停止执行并披露。
 
