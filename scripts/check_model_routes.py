@@ -160,6 +160,125 @@ def check_routes(
     return issues
 
 
+def runtime_providers(models_yml: Path) -> set[str]:
+    """Providers explicitly configured for this profile."""
+    if not models_yml.is_file():
+        return set()
+    try:
+        payload = read_yaml(models_yml)
+    except RouteError:
+        return set()
+    providers = payload.get("providers") or {}
+    return set(providers) if isinstance(providers, dict) else set()
+
+
+def known_provider_models(models_db: Path) -> dict[str, set[str]]:
+    """provider -> known model ids, from the runtime model cache.
+
+    Built-in provider presets (zhipu-coding-plan, kimi-code, deepseek …) are not
+    listed in models.yml, so a role binding can only be validated against this
+    cache. Cache keys may carry a discovery suffix (`teamorouter:openai-...`),
+    which is stripped.
+    """
+    if not models_db.is_file():
+        return {}
+    try:
+        connection = sqlite3.connect(f"file:{models_db}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return {}
+    known: dict[str, set[str]] = {}
+    try:
+        rows = connection.execute("select provider_id, models from model_cache").fetchall()
+    except sqlite3.Error:
+        return {}
+    for provider_id, blob in rows:
+        provider = str(provider_id).split(":", 1)[0]
+        try:
+            entries = json.loads(blob) if isinstance(blob, str) else blob
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(entries, list):
+            continue
+        ids = {str(entry.get("id")) for entry in entries if isinstance(entry, dict) and entry.get("id")}
+        known.setdefault(provider, set()).update(ids)
+    return known
+
+
+def check_availability(
+    configured: dict[str, str],
+    chains: dict[str, list[str]],
+    providers: set[str],
+    known: dict[str, set[str]],
+) -> list[str]:
+    """Every bound selector must resolve: known provider, and a model it lists.
+
+    This catches the class of drift where a role points at a provider that was
+    removed from models.yml, or at a model id that no longer exists — the
+    runtime would otherwise fall back silently.
+    """
+    issues: list[str] = []
+    if not providers and not known:
+        # Nothing to verify against (no models.yml, no model cache): report a gap
+        # rather than flagging every provider as unknown.
+        return issues
+    selectors: list[tuple[str, str]] = [(f"role {role}", selector) for role, selector in configured.items()]
+    for agent, chain in chains.items():
+        for entry in chain:
+            if entry.startswith("@"):
+                continue
+            selectors.append((f"agent {agent}", entry))
+    for owner, selector in selectors:
+        model, _ = split_selector(selector)
+        if not model or "/" not in model:
+            continue
+        provider, model_id = model.split("/", 1)
+        if provider not in providers and provider not in known:
+            issues.append(
+                f"{owner} binds {model}: provider {provider} is neither configured in models.yml "
+                "nor a known runtime provider"
+            )
+            continue
+        listed = known.get(provider)
+        if listed and model_id not in listed:
+            issues.append(
+                f"{owner} binds {model}: the runtime model cache does not list {model_id} for {provider}"
+            )
+    return issues
+
+
+def check_temporary_bindings(
+    temporary: dict[str, dict], configured: dict[str, str], quota: dict
+) -> list[str]:
+    """A declared temporary binding must be reverted once its condition is met.
+
+    Otherwise an exhaustion-era rebind silently becomes the permanent default,
+    which is exactly the drift the runbook forbids.
+    """
+    issues: list[str] = []
+    if not quota.get("available"):
+        return issues
+    verdicts = {str(item.get("provider")): str(item.get("verdict")) for item in quota.get("providers") or []}
+    for role, entry in sorted(temporary.items()):
+        selector = split_selector(str(entry.get("selector", "")))[0]
+        if split_selector(str(configured.get(role, "")))[0] != selector:
+            continue  # not in effect
+        revert_when = str(entry.get("revertWhen", ""))
+        if "usage" not in revert_when and "window" not in revert_when:
+            continue
+        revert_to = str(entry.get("revertTo", ""))
+        channel = split_selector(revert_to)[0].split("/", 1)[0] if "/" in revert_to else ""
+        if not channel:
+            continue
+        verdict = verdicts.get(channel)
+        if verdict in (None, "ok", "warm"):
+            issues.append(
+                f"temporary binding for role {role} is past its revert condition "
+                f"({channel} reports {verdict or 'no-problem-samples'}): revert to {revert_to} "
+                "and drop the declaration"
+            )
+    return issues
+
+
 def check_role_billing(configured: dict[str, str], billing: dict[str, str]) -> list[str]:
     issues: list[str] = []
     for role, provider in sorted(role_providers(configured).items()):
@@ -511,17 +630,27 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int, quota_db
     configured = configured_routes(config)
     billing = provider_billing(catalog)
     temporary = temporary_bindings(catalog)
-    issues = check_routes(expected, configured, temporary)
-    issues.extend(check_role_billing(configured, billing))
     chains = agent_chains(AGENTS_DIR)
     aliases = declared_aliases(catalog)
-    issues.extend(check_chains(chains, declared_chains(catalog), billing, alias_providers(configured)))
     task_overrides = configured_task_overrides(config)
+    portfolio_quota = portfolio_of(catalog).get("quotaWindows") or {}
+    quota_path = quota_db or target / "agent.db"
+    usage = usage_report(stats_db, days, portfolio_of(catalog).get("tiers") or {}, quota_path, portfolio_quota)
+    issues = check_routes(expected, configured, temporary)
+    issues.extend(check_role_billing(configured, billing))
+    issues.extend(check_chains(chains, declared_chains(catalog), billing, alias_providers(configured)))
     issues.extend(
         check_task_overrides(expected_task_overrides(catalog), task_overrides, aliases, configured)
     )
-    portfolio_quota = portfolio_of(catalog).get("quotaWindows") or {}
-    quota_path = quota_db or target / "agent.db"
+    providers = runtime_providers(target / "models.yml")
+    known = known_provider_models(target / "models.db")
+    gaps: list[str] = []
+    if not providers and not known:
+        gaps.append(
+            f"no models.yml or model cache under {target}: provider and model availability not verified"
+        )
+    issues.extend(check_availability(configured, chains, providers, known))
+    issues.extend(check_temporary_bindings(temporary, configured, usage.get("quotaWindows") or {}))
     return {
         "profile": profile,
         "runtimeHome": str(target),
@@ -544,7 +673,8 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int, quota_db
         },
         "taskAgentModelOverrides": task_overrides,
         "issues": issues,
-        "usage": usage_report(stats_db, days, portfolio_of(catalog).get("tiers") or {}, quota_path, portfolio_quota),
+        "gaps": gaps,
+        "usage": usage,
     }
 
 

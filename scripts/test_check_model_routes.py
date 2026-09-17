@@ -312,5 +312,89 @@ class ModelRouteCheckTest(unittest.TestCase):
             self.assertIn("runtime binds", drifted.stderr)
 
 
+class AvailabilityAndTemporaryBindingTest(unittest.TestCase):
+    def test_known_provider_models_strips_discovery_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            db = Path(raw) / "models.db"
+            connection = sqlite3.connect(db)
+            with connection:
+                connection.execute("create table model_cache (provider_id text, models text)")
+                connection.execute(
+                    "insert into model_cache values (?, ?)",
+                    ("teamorouter:openai-models-list-context-v3", json.dumps([{"id": "deepseek-flash"}])),
+                )
+                connection.execute(
+                    "insert into model_cache values (?, ?)", ("zhipu-coding-plan", json.dumps([{"id": "glm-5.3"}]))
+                )
+            known = check_model_routes.known_provider_models(db)
+        self.assertEqual(known["teamorouter"], {"deepseek-flash"})
+        self.assertEqual(known["zhipu-coding-plan"], {"glm-5.3"})
+
+    def test_availability_accepts_builtin_preset_provider(self) -> None:
+        issues = check_model_routes.check_availability(
+            {"plan_alt": "zhipu-coding-plan/glm-5.3"},
+            {},
+            providers={"teamorouter"},
+            known={"zhipu-coding-plan": {"glm-5.3", "glm-5.3-flash"}},
+        )
+        self.assertEqual(issues, [])
+
+    def test_availability_flags_unknown_provider(self) -> None:
+        issues = check_model_routes.check_availability(
+            {"deep_review": "ghost/model-x"}, {}, providers={"teamorouter"}, known={"kimi-code": {"k3"}}
+        )
+        self.assertEqual(len(issues), 1)
+        self.assertIn("ghost", issues[0])
+
+    def test_availability_flags_model_missing_from_known_provider(self) -> None:
+        issues = check_model_routes.check_availability(
+            {"ui_deep": "zhipu-coding-plan/glm-9"}, {}, providers=set(), known={"zhipu-coding-plan": {"glm-5.3"}}
+        )
+        self.assertEqual(len(issues), 1)
+        self.assertIn("glm-9", issues[0])
+
+    def test_availability_checks_agent_chain_fallbacks(self) -> None:
+        issues = check_model_routes.check_availability(
+            {}, {"team-os-planner": ["@plan_owner", "ghost/glm-5"]}, providers=set(), known={"kimi-code": {"k3"}}
+        )
+        self.assertEqual(len(issues), 1)
+        self.assertIn("agent team-os-planner", issues[0])
+
+    def test_temporary_binding_past_revert_condition_is_reported(self) -> None:
+        temporary = {
+            "plan_owner": {"selector": "zhipu-coding-plan/glm-5.3", "revertTo": "kimi-code/k3-256k", "revertWhen": "usage_history-reports-ok-after-window-reset"}
+        }
+        configured = {"plan_owner": "zhipu-coding-plan/glm-5.3"}
+        quota_ok = {"available": True, "providers": [{"provider": "kimi-code", "verdict": "ok"}]}
+        issues = check_model_routes.check_temporary_bindings(temporary, configured, quota_ok)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("past its revert condition", issues[0])
+
+    def test_temporary_binding_stays_while_window_is_exhausted(self) -> None:
+        temporary = {
+            "plan_owner": {"selector": "zhipu-coding-plan/glm-5.3", "revertTo": "kimi-code/k3-256k", "revertWhen": "usage_history-reports-ok-after-window-reset"}
+        }
+        configured = {"plan_owner": "zhipu-coding-plan/glm-5.3"}
+        quota = {"available": True, "providers": [{"provider": "kimi-code", "verdict": "exhausted"}]}
+        self.assertEqual(check_model_routes.check_temporary_bindings(temporary, configured, quota), [])
+
+    def test_temporary_binding_check_skips_unknown_window_state(self) -> None:
+        temporary = {
+            "default": {"selector": "zhipu-coding-plan/glm-5.3:high", "revertTo": "kimi-code/k3-256k", "revertWhen": "usage_history-reports-ok-after-window-reset"}
+        }
+        configured = {"default": "zhipu-coding-plan/glm-5.3:high"}
+        self.assertEqual(
+            check_model_routes.check_temporary_bindings(temporary, configured, {"available": False}), []
+        )
+
+    def test_inactive_temporary_binding_is_not_reported(self) -> None:
+        temporary = {
+            "plan_owner": {"selector": "zhipu-coding-plan/glm-5.3", "revertTo": "kimi-code/k3-256k", "revertWhen": "usage_history-reports-ok-after-window-reset"}
+        }
+        configured = {"plan_owner": "kimi-code/k3-256k"}
+        quota = {"available": True, "providers": []}
+        self.assertEqual(check_model_routes.check_temporary_bindings(temporary, configured, quota), [])
+
+
 if __name__ == "__main__":
     unittest.main()
