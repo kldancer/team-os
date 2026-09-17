@@ -33,6 +33,7 @@ COMMON_FILES = {
 }
 OMP_AGENT_FILES = {
     "agents/team-os-planner.md": ROOT / "omp/agents/team-os-planner.md",
+    "agents/team-os-planner-alt.md": ROOT / "omp/agents/team-os-planner-alt.md",
     "agents/team-os-ui-designer.md": ROOT / "omp/agents/team-os-ui-designer.md",
     "agents/team-os-deep-reviewer.md": ROOT / "omp/agents/team-os-deep-reviewer.md",
     "agents/team-os-fast-scout.md": ROOT / "omp/agents/team-os-fast-scout.md",

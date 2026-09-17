@@ -72,6 +72,7 @@ class ModelRouteCheckTest(unittest.TestCase):
     def test_matching_roles_produce_no_issues(self) -> None:
         expected = {role: f"router/{role}" for role in check_model_routes.ROLES}
         self.assertEqual(check_model_routes.check_routes(expected, dict(expected)), [])
+        self.assertIn("plan_alt", check_model_routes.ROLES)
 
     def test_thinking_level_suffix_is_not_treated_as_drift(self) -> None:
         expected = {role: f"router/{role}" for role in check_model_routes.ROLES}
@@ -213,6 +214,53 @@ class ModelRouteCheckTest(unittest.TestCase):
         self.assertEqual(waste["repeatedToolCalls"], 1)
         self.assertEqual(waste["repeatedResultChars"], 4000)
         self.assertAlmostEqual(waste["repeatedCharShare"], 0.444, places=3)
+
+    def test_declared_temporary_binding_is_accepted_but_real_drift_is_not(self) -> None:
+        expected = {role: f"router/{role}" for role in check_model_routes.ROLES}
+        configured = dict(expected)
+        configured["default"] = "backup/glm-5.3:high"
+        temporary = {"default": {"selector": "backup/glm-5.3:high", "revertTo": "router/default"}}
+        self.assertEqual(check_model_routes.check_routes(expected, configured, temporary), [])
+        self.assertNotEqual(check_model_routes.check_routes(expected, configured, {}), [])
+        drifted = dict(configured)
+        drifted["default"] = "backup/other-model"
+        self.assertNotEqual(check_model_routes.check_routes(expected, drifted, temporary), [])
+
+    def test_quota_window_verdict_and_action(self) -> None:
+        policy = {"kimi-code": {"warmAt": 0.7, "downgradeAt": 0.9}}
+        self.assertEqual(check_model_routes.quota_window_verdict(0.2, 0.7, 0.9, "ok"), "ok")
+        self.assertEqual(check_model_routes.quota_window_verdict(0.75, 0.7, 0.9, "ok"), "warm")
+        self.assertEqual(check_model_routes.quota_window_verdict(0.95, 0.7, 0.9, "ok"), "downgrade")
+        self.assertEqual(check_model_routes.quota_window_verdict(0.4, 0.7, 0.9, "exhausted"), "exhausted")
+        with tempfile.TemporaryDirectory() as raw:
+            db = Path(raw) / "agent.db"
+            missing = check_model_routes.quota_windows(db, 24, policy)
+            self.assertFalse(missing["available"])
+            self.assertIn("unknown", missing["action"])
+            connection = sqlite3.connect(db)
+            with connection:
+                connection.execute(
+                    "create table usage_history (id integer primary key, recorded_at integer, provider text,"
+                    " account_key text, email text, account_id text, limit_id text, label text,"
+                    " window_label text, used_fraction real, status text, resets_at integer)"
+                )
+                now = int(time.time() * 1000)
+                connection.executemany(
+                    "insert into usage_history (recorded_at, provider, window_label, used_fraction, status, resets_at)"
+                    " values (?, ?, ?, ?, ?, ?)",
+                    [
+                        (now - 3600_000, "kimi-code", "5h limit", 0.3, "ok", now + 3600_000),
+                        (now, "kimi-code", "5h limit", 0.92, "ok", now + 3600_000),
+                    ],
+                )
+            connection.close()
+            report = check_model_routes.quota_windows(db, 24, policy)
+        self.assertTrue(report["available"])
+        window = report["providers"][0]
+        self.assertEqual(window["verdict"], "downgrade")
+        self.assertEqual(window["peakFraction"], 0.92)
+        self.assertEqual(window["samples"], 2)
+        self.assertIn("kimi-code", report["action"])
 
     def test_missing_stats_database_reports_unavailable_instead_of_zero(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

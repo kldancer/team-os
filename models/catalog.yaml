@@ -30,6 +30,8 @@ activePortfolio:
   defaults:
     outcomeOwner: kimi-k3
     planningOwner: kimi-k3
+    reviewPlanning: glm-5.3
+    visualAcceptance: glm-5.3-flash
     finalSynthesis: kimi-k3
     crossBoundaryDesign: kimi-k3
     deepReview: glm-5.3
@@ -57,6 +59,15 @@ activePortfolio:
       sharedPool: true
       windows: [5h, weekly]
       publishedValues: unknown
+      warmAt: 0.7
+      downgradeAt: 0.9
+      onExhausted:
+        rebindOwner: zhipu-coding-plan/glm-5.3
+        crossVendorReview: cliproxyapi/gpt-6-astra
+        keepVisual: zhipu-coding-plan/glm-5.3-flash
+        keepExecution: teamorouter/deepseek-flash
+        disclose: owner-lands-on-the-adjudication-tier-so-independent-review-moves-to-the-standby-channel
+        resumeWhen: window-resets-and-usage_history-reports-ok
       note: 订阅额度池与网页/Agent/深度研究/幻灯片/文档/表格/Kimi Code/Kimi Work 共享；Kimi Code 另有 5 小时/周限额；未用额度按计费周期清零
       source: https://www.kimi.com/help/membership/membership-overview
     glm-coding-plan:
@@ -83,22 +94,45 @@ activePortfolio:
     sonic: "@fast_worker"
   ompRoleAliases:
     plan_owner: kimi-k3
+    plan_alt: glm-5.3
     deep_review: glm-5.3
     ui_deep: glm-5.3-flash
     fast_worker: deepseek-flash
     fast_alt: kimi-for-coding-highspeed
   ompResolvedSelectors:
-    default: kimi-code/k3
+    default: kimi-code/k3-256k
     plan_owner: kimi-code/k3-256k
+    plan_alt: zhipu-coding-plan/glm-5.3
     deep_review: zhipu-coding-plan/glm-5.3
     ui_deep: zhipu-coding-plan/glm-5.3-flash
     fast_worker: teamorouter/deepseek-flash
     fast_alt: kimi-code/kimi-for-coding-highspeed
+  temporaryBindings:
+    plan_owner:
+      selector: zhipu-coding-plan/glm-5.3
+      reason: kimi-code-5h-window-exhausted
+      since: "2026-09-17T10:25+08:00"
+      revertTo: kimi-code/k3-256k
+      revertWhen: usage_history-reports-ok-after-window-reset
+      note: 耗尽期间分析档由研判档代持；此时异厂挑战改走 standby cliproxyapi/gpt-6-astra
+    default:
+      selector: zhipu-coding-plan/glm-5.3:high
+      reason: kimi-code-5h-window-exhausted
+      since: "2026-09-17T10:20+08:00"
+      revertTo: kimi-code/k3-256k
+      revertWhen: usage_history-reports-ok-after-window-reset
+      note: 耗尽期间的显式重绑；恢复后必须切回，不能沉淀为常态
   standbySelectors:
     plan_owner: cliproxyapi/gpt-5.6-sol
     deep_review: cliproxyapi/gpt-6-astra
     ui_deep: cliproxyapi/gpt-6-astra
     note: GPT 通道保留为第三意见与回退，不作为默认绑定
+  contextPromotion:
+    enabled: true
+    from: kimi-code/k3-256k
+    to: kimi-code/k3
+    trigger: threshold-or-overflow-before-compaction
+    note: 运行时要开 contextPromotion.enabled，并在 models.yml 的 kimi-code.modelOverrides.k3-256k 声明 contextPromotionTarget
   ompProviderBilling:
     kimi-code: subscription
     zhipu-coding-plan: subscription
@@ -106,7 +140,8 @@ activePortfolio:
     teamorouter: pay-as-you-go
     deepseek: pay-as-you-go
   ompAgentFallbacks:
-    team-os-planner: ["@plan_owner", "kimi-code/kimi-for-coding"]
+    team-os-planner: ["@plan_owner", "zhipu-coding-plan/glm-5"]
+    team-os-planner-alt: ["@plan_alt", "zhipu-coding-plan/glm-5"]
     team-os-deep-reviewer: ["@deep_review", "zhipu-coding-plan/glm-5"]
     team-os-ui-designer: ["@ui_deep"]
     team-os-fast-scout: ["@fast_worker", "deepseek/deepseek-flash"]
@@ -121,6 +156,7 @@ activePortfolio:
     kimi-k3:
       admission: default-owner
       runtimeModelId: k3-256k
+      runtimeModelIdLong: k3
       runtimeModelIdLongContext: k3
       displayName: Kimi K3
       runtimeContextWindow: 262144
@@ -138,8 +174,13 @@ activePortfolio:
         - routine-bounded-implementation
         - batch-execution-that-drains-the-shared-membership-pool
         - self-review-of-its-own-conclusions
-      quotaRule: subagent-analysis-uses-k3-256k-because-quality-matches-within-256k; main-session-uses-k3-1M-because-measured-median-context-is-430k
-      measuredContext: {mainMedian: 430134, subagentMedian: 145437, mainShareOver256k: 0.738}
+      quotaRule: default-work-stays-on-k3-256k; the-1M-variant-is-reached-by-explicit-selection-or-automatic-promotion-on-threshold
+      measuredContext:
+        mainMedian: 430134
+        subagentMedian: 145437
+        mainShareOver256k: 0.738
+        note: 整改前基线；目标是把主会话常态上下文压到 200K 以下，让晋升回归例外
+        targetMainMedian: 200000
       handoffContract: owns-outcome-plan-worker-packs-adjudication-and-final-synthesis
     glm-5.3:
       admission: specialist-only-by-default
@@ -231,6 +272,15 @@ activePortfolio:
       handoffContract: returns-findings-and-evidence-to-the-current-owner
   routingRules:
     - one-outcome-has-one-owner
+    - short-work-starts-on-k3-256k-and-promotes-to-1M-only-on-threshold
+    - main-session-keeps-decisions-dispatch-and-receipts-only
+    - ui-and-visual-acceptance-always-route-through-the-vision-tier
+    - frozen-candidates-always-get-one-cross-vendor-finding-or-an-explicit-waiver
+    - planning-splits-adjudication-to-k3-and-review-planning-to-glm-5.3
+    - batch-reads-and-commands-route-to-the-execution-tier
+    - when-a-subscription-window-exceeds-70-percent-downgrade-and-disclose
+    - window-downgrade-outranks-the-planning-ratio-and-must-be-disclosed
+    - an-exhausted-subscription-rebinds-the-owner-explicitly-because-no-same-tier-fallback-can-help
     - reserved-roles-are-explicitly-bound-and-never-default
     - subscribe-channel-and-pay-as-you-go-channel-never-bind-the-same-role
     - fallback-must-stay-inside-one-cost-tier-and-be-declared-in-ompAgentFallbacks

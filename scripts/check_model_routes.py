@@ -21,8 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "models" / "catalog.yaml"
 AGENTS_DIR = ROOT / "omp" / "agents"
-ROLES = ("default", "plan_owner", "ui_deep", "deep_review", "fast_worker", "fast_alt")
-RESERVED_ROLES = ("plan_owner", "ui_deep", "deep_review", "fast_alt")
+ROLES = ("default", "plan_owner", "plan_alt", "ui_deep", "deep_review", "fast_worker", "fast_alt")
+RESERVED_ROLES = ("plan_owner", "plan_alt", "ui_deep", "deep_review", "fast_alt")
 PEAK_HOURS = (9, 10, 11, 14, 15, 16, 17)
 
 
@@ -128,16 +128,31 @@ def alias_providers(configured: dict[str, str]) -> dict[str, str]:
     return {f"@{role}": provider for role, provider in role_providers(configured).items()}
 
 
-def check_routes(expected: dict[str, str], configured: dict[str, str]) -> list[str]:
+def temporary_bindings(catalog: dict) -> dict[str, dict]:
+    portfolio = catalog.get("activePortfolio") or {}
+    declared = portfolio.get("temporaryBindings") or {}
+    if not isinstance(declared, dict):
+        raise RouteError("activePortfolio.temporaryBindings must be a mapping")
+    return {str(role): dict(entry or {}) for role, entry in declared.items()}
+
+
+def check_routes(
+    expected: dict[str, str], configured: dict[str, str], temporary: dict[str, dict] | None = None
+) -> list[str]:
     issues: list[str] = []
+    temporary = temporary or {}
     for role in ROLES:
         want = expected.get(role, "")
         have = configured.get(role, "")
         if not want:
             issues.append(f"catalog does not declare role: {role}")
             continue
-        want_model, _ = split_selector(want)
+        override = temporary.get(role) or {}
+        declared_override, _ = split_selector(str(override.get("selector", "")))
         have_model, _ = split_selector(have)
+        if declared_override and declared_override == have_model:
+            continue
+        want_model, _ = split_selector(want)
         if have_model != want_model:
             issues.append(
                 f"role {role}: runtime binds {have or '<missing>'}, catalog expects {want}"
@@ -226,6 +241,99 @@ def check_chains(
     return issues
 
 
+def channel_policy(policy: dict, provider: str) -> dict:
+    """Resolve a provider to its window policy entry (matched by the catalog `channel` field)."""
+    entry = policy.get(provider)
+    if isinstance(entry, dict):
+        return entry
+    for value in policy.values():
+        if isinstance(value, dict) and str(value.get("channel") or "") == provider:
+            return value
+    return {}
+
+
+def quota_window_verdict(used: float | None, warm: float, downgrade: float, status: str) -> str:
+    if status and status != "ok":
+        return "exhausted"
+    if used is None:
+        return "unknown"
+    if used >= downgrade:
+        return "downgrade"
+    if used >= warm:
+        return "warm"
+    return "ok"
+
+
+def quota_windows(quota_db: Path, hours: int, policy: dict) -> dict:
+    """Subscription window guardrail: current usage, trend and the required action."""
+    report = {
+        "database": str(quota_db),
+        "windowHours": hours,
+        "available": False,
+        "providers": [],
+        "action": None,
+        "runbook": None,
+    }
+    if not quota_db.is_file():
+        report["action"] = "no-quota-database: window state unknown, do not assume headroom"
+        return report
+    try:
+        connection = sqlite3.connect(f"file:{quota_db}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return report
+    with connection:
+        cutoff = int((time.time() - hours * 3600) * 1000)
+        rows = connection.execute(
+            """
+            select provider, window_label, used_fraction, status, resets_at, recorded_at
+            from usage_history where recorded_at >= ? order by recorded_at
+            """,
+            (cutoff,),
+        ).fetchall()
+    if not rows:
+        report["action"] = "no-recent-samples: window state unknown, do not assume headroom"
+        return report
+    report["available"] = True
+    grouped: dict[tuple[str, str], list] = {}
+    for provider, window_label, used, status, resets, recorded in rows:
+        grouped.setdefault((str(provider), str(window_label)), []).append((recorded, used, status, resets))
+    for (provider, window_label), samples in sorted(grouped.items()):
+        latest = samples[-1]
+        rules = channel_policy(policy, provider)
+        warm = rules.get("warmAt", 0.7)
+        downgrade = rules.get("downgradeAt", 0.9)
+        verdict = quota_window_verdict(latest[1], warm, downgrade, latest[2])
+        if verdict == "exhausted" and rules.get("onExhausted"):
+            report["runbook"] = {
+                "trigger": f"{provider} {window_label} exhausted",
+                "steps": rules["onExhausted"],
+            }
+        report["providers"].append(
+            {
+                "provider": provider,
+                "window": window_label,
+                "usedFraction": latest[1],
+                "status": latest[2],
+                "verdict": verdict,
+                "resetsAt": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime((latest[3] or 0) / 1000)),
+                "samples": len(samples),
+                "peakFraction": max((item[1] or 0) for item in samples),
+                "recordedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime((latest[0] or 0) / 1000)),
+            }
+        )
+    worst = {"ok": 0, "warm": 1, "downgrade": 2, "exhausted": 3, "unknown": 1}
+    top = max(report["providers"], key=lambda item: worst.get(item["verdict"], 1), default=None)
+    if top:
+        report["action"] = {
+            "ok": "headroom-ok",
+            "warm": f"{top['provider']} window at {top['usedFraction']}: move heavy review and planning off-peak, keep short work on the 256K tier",
+            "downgrade": f"{top['provider']} window at {top['usedFraction']}: route new planning and review to the other subscription tier and disclose the switch",
+            "exhausted": f"{top['provider']} window exhausted: stop dispatching that tier, use the standby or pay-as-you-go channel and disclose",
+            "unknown": "window state unknown: do not assume headroom",
+        }[top["verdict"]]
+    return report
+
+
 def tier_of(model: str, tiers: dict) -> str:
     """Classify a runtime model id into a portfolio tier by longest matching prefix."""
     best_tier, best_length = "", 0
@@ -299,7 +407,7 @@ def context_waste(connection: sqlite3.Connection, cutoff_ms: int) -> dict:
     }
 
 
-def usage_report(stats_db: Path, days: int, tiers: dict) -> dict:
+def usage_report(stats_db: Path, days: int, tiers: dict, quota_db: Path | None = None, quota_policy: dict | None = None) -> dict:
     report = {
         "statsDb": str(stats_db),
         "windowDays": days,
@@ -309,6 +417,7 @@ def usage_report(stats_db: Path, days: int, tiers: dict) -> dict:
         "byModel": [],
         "contextCharsByModel": [],
         "contextWaste": {},
+        "quotaWindows": {},
     }
     if not stats_db.is_file():
         return report
@@ -376,6 +485,8 @@ def usage_report(stats_db: Path, days: int, tiers: dict) -> dict:
         )
         report["byTier"].append(bucket)
     report["byTier"].sort(key=lambda row: -row["messages"])
+    if quota_db is not None:
+        report["quotaWindows"] = quota_windows(quota_db, min(days, 2) * 24, quota_policy or {})
     report["byModel"] = [
         {
             "model": row[0],
@@ -391,7 +502,7 @@ def usage_report(stats_db: Path, days: int, tiers: dict) -> dict:
     return report
 
 
-def collect(profile: str, home: Path | None, stats_db: Path, days: int) -> dict:
+def collect(profile: str, home: Path | None, stats_db: Path, days: int, quota_db: Path | None = None) -> dict:
     catalog = read_yaml(CATALOG)
     target = home or Path("~/.omp/profiles").expanduser() / profile / "agent"
     config_path = target / "config.yml"
@@ -399,7 +510,8 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int) -> dict:
     expected = expected_routes(catalog)
     configured = configured_routes(config)
     billing = provider_billing(catalog)
-    issues = check_routes(expected, configured)
+    temporary = temporary_bindings(catalog)
+    issues = check_routes(expected, configured, temporary)
     issues.extend(check_role_billing(configured, billing))
     chains = agent_chains(AGENTS_DIR)
     aliases = declared_aliases(catalog)
@@ -408,6 +520,8 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int) -> dict:
     issues.extend(
         check_task_overrides(expected_task_overrides(catalog), task_overrides, aliases, configured)
     )
+    portfolio_quota = portfolio_of(catalog).get("quotaWindows") or {}
+    quota_path = quota_db or target / "agent.db"
     return {
         "profile": profile,
         "runtimeHome": str(target),
@@ -421,9 +535,16 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int) -> dict:
             for role in ROLES
         },
         "agentChains": chains,
+        "temporaryBindings": {
+            role: {
+                **entry,
+                "active": split_selector(str(configured.get(role, "")))[0] == split_selector(str(entry.get("selector", "")))[0],
+            }
+            for role, entry in temporary.items()
+        },
         "taskAgentModelOverrides": task_overrides,
         "issues": issues,
-        "usage": usage_report(stats_db, days, portfolio_of(catalog).get("tiers") or {}),
+        "usage": usage_report(stats_db, days, portfolio_of(catalog).get("tiers") or {}, quota_path, portfolio_quota),
     }
 
 
@@ -433,6 +554,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--home", type=Path, help="override the runtime agent directory")
     parser.add_argument("--stats-db", type=Path, help="override the runtime stats database")
     parser.add_argument("--stats-days", type=int, default=7, help="usage window in days")
+    parser.add_argument("--quota-db", type=Path, help="override the runtime agent database holding provider window usage")
     return parser.parse_args(argv)
 
 
@@ -441,7 +563,7 @@ def main(argv: list[str] | None = None) -> int:
     target = args.home or Path("~/.omp/profiles").expanduser() / args.profile / "agent"
     stats_db = args.stats_db or target.parent / "stats.db"
     try:
-        report = collect(args.profile, args.home, stats_db, args.stats_days)
+        report = collect(args.profile, args.home, stats_db, args.stats_days, args.quota_db)
     except RouteError as error:
         print(f"check-model-routes: {error}", file=sys.stderr)
         return 2
