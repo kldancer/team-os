@@ -107,21 +107,11 @@ activePortfolio:
     ui_deep: zhipu-coding-plan/glm-5.3-flash
     fast_worker: teamorouter/deepseek-flash
     fast_alt: kimi-code/kimi-for-coding-highspeed
-  temporaryBindings:
-    plan_owner:
-      selector: zhipu-coding-plan/glm-5.3
-      reason: kimi-code-5h-window-exhausted
-      since: "2026-09-17T10:25+08:00"
-      revertTo: kimi-code/k3-256k
-      revertWhen: usage_history-reports-ok-after-window-reset
-      note: 耗尽期间分析档由研判档代持；此时异厂挑战改走 standby cliproxyapi/gpt-6-astra
-    default:
-      selector: zhipu-coding-plan/glm-5.3:high
-      reason: kimi-code-5h-window-exhausted
-      since: "2026-09-17T10:20+08:00"
-      revertTo: kimi-code/k3-256k
-      revertWhen: usage_history-reports-ok-after-window-reset
-      note: 耗尽期间的显式重绑；恢复后必须切回，不能沉淀为常态
+  temporaryBindings: {}
+  dispatchPolicy:
+    failureBudget: 2
+    cadenceMinutes: 20
+    note: 同一验收点连续失败到该轮数即停线回规划；两处脚本与文档都读这里，不各写一个字面量
   standbySelectors:
     plan_owner: cliproxyapi/gpt-5.6-sol
     deep_review: cliproxyapi/gpt-6-astra
