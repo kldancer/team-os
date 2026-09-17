@@ -237,24 +237,28 @@ flowchart TB
 | --- | --- | --- |
 | `plan_owner` | Kimi K3（`k3-256k`，子代理规划） | 分析档：规划、跨边界设计、裁决与派工包 |
 | `deep_review` | GLM-5.3 | 研判档：异厂红队与深度只读评审 |
+| `plan_alt` | GLM-5.3 | 研判档：评审型规划草案（覆盖型规划、接口/失败面矩阵） |
 | `ui_deep` | GLM-5.3-Flash | 视觉档：UI/前端深度设计与视觉判断 |
 | `fast_worker` | DeepSeek V4.1 Flash | 执行档：侦察与派工包内的有界实现 |
 | `fast_alt` | `kimi-for-coding-highspeed` | 套餐内高速备选：只在显式选择时使用 |
-| `default` | Kimi K3（`k3:high`，1M） | 分析档：主 Session 默认模型与未绑定回退 |
+| `default` | Kimi K3（`k3-256k:high`） | 分析档：主 Session 默认模型与未绑定回退 |
 
 在配置文件中的持久化形状如下（当前实际值；换 Provider 时从 `/model` 的实际可用模型中选择，不能照抄）：
 
 ```yaml
+contextPromotion:
+  enabled: true
 modelRoles:
   plan_owner: kimi-code/k3-256k
+  plan_alt: zhipu-coding-plan/glm-5.3
   deep_review: zhipu-coding-plan/glm-5.3
   ui_deep: zhipu-coding-plan/glm-5.3-flash
   fast_worker: teamorouter/deepseek-flash
   fast_alt: kimi-code/kimi-for-coding-highspeed
-  default: kimi-code/k3:high
+  default: kimi-code/k3-256k:high
 ```
 
-执行档不靠 `default` 落实：`default` 指向分析档，决定主 Session 默认模型；执行工作由 `@fast_worker` 和 Profile 的 `task.agentModelOverrides`（泛型 `task`/`scout`/`sonic`）绑定，因为**未绑定的子角色会继承父 Session 模型**。selector、覆盖项和 agent 回退链的声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`、`ompTaskAgentModelOverrides`、`ompAgentFallbacks`（回退链只在同一计费档内），可用 `python3 scripts/check_model_routes.py` 一次性核对配置漂移、混档回退、agent 链一致性和运行时按档位/峰谷的真实用量。
+执行档不靠 `default` 落实：`default` 指向分析档，决定主 Session 默认模型；执行工作由 `@fast_worker` 和 Profile 的 `task.agentModelOverrides`（泛型 `task`/`scout`/`sonic`）绑定，因为**未绑定的子角色会继承父 Session 模型**。selector、覆盖项和 agent 回退链的声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`、`ompTaskAgentModelOverrides`、`ompAgentFallbacks`（回退链只在同一计费档内），可用 `python3 scripts/check_model_routes.py` 核对配置漂移、混档回退、agent 链一致性、按档位/峰谷用量、**订阅窗口余量与必须执行的动作**、上下文浪费；用 `python3 scripts/check_role_routing.py --days 1 --folder <仓库>` 核对派工是否真的按档位发生（规划占比、视觉/研判档派工、主线执行占比、1M 晋升次数）。
 
 安装器会投影五个可直接被 `task` 调用的 OMP Agent：
 
@@ -269,6 +273,24 @@ modelRoles:
 新 Profile 尚未登录 Provider 时，`omp models` 会返回空，因此 Team OS 安装器只投影角色别名，不猜测 API、OpenRouter 或其他 Provider 的 selector。完成登录和映射后，第一次分派每种 Agent 时按 `Alt+A` 检查 resolved model；若发生错误 fallback，停止该 worker 并先修正映射。
 
 GPT-5.6 Sol 与 GPT-6 Astra 自 2026-09-16 起降为 standby（第三意见与回退），声明在 `catalog.yaml` 的 `standbySelectors`；需要时在 `/model` 的 Roles 视图显式绑定并披露，不作为默认。
+
+### 3.4.1 256K 起步与 1M 按需晋升
+
+`k3`（1M）消耗约为 `k3-256k` 的两倍，且官方说明 256K 内质量相同。因此默认工作档固定在 **`k3-256k`**，1M 只在两种情况下出现：
+
+1. **显式选择**：跨仓合同、整仓重构、长文档等确实超过 256K 的任务，由负责人写明理由后 `/model` 切到 `k3`；
+2. **自动晋升**：运行时开启 `contextPromotion.enabled`，并在 `models.yml` 声明晋升目标，上下文越过阈值（或溢出）时先晋升、不压缩、不丢信息：
+
+```yaml
+# agent/models.yml
+providers:
+  kimi-code:
+    modelOverrides:
+      k3-256k:
+        contextPromotionTarget: kimi-code/k3
+```
+
+晋升以临时 `model_change` 记录在会话里，不改写角色映射，可在会话记录中核查；短会话（例如排查一个小 bug）永远到不了阈值，因此**不占用 1M 额度**。
 
 ### 3.5 三个订阅/按量通道怎样登录
 
@@ -435,41 +457,46 @@ flowchart LR
 
 ## 5. 可直接复制的 OMP 日常说法
 
-八个说法，流程所有者写在标题里；相似意图已合并，差异用替换句表达。
+**每次带上这三句**（整改后它们是检查项，不是建议）：
 
-### 5.1 讨论与设计（`design`：方案还没定）
+1. **路由**：规划至少一半交 `@plan_alt`（研判档）起草，裁决与最终综合留分析档；UI 与视觉验收必经视觉档；冻结候选至少一条研判档（或 standby）findings；批量读取与命令执行交执行档；主线只做决策、派工与收据。
+2. **额度**：默认停在 `k3-256k`，1M 只在显式说明理由或越阈值自动晋升时出现；窗口 ≥70% 把重活排非高峰，≥90% 或耗尽改派另一订阅档并披露。
+3. **证据**：worker 只回带 `文件:行号` 的压缩证据包；同一事实在同一会话内只读一次；大输出先落 `.work`/`artifact://` 再摘要。
+
+| 说法（流程所有者） | 什么时候用 |
+| --- | --- |
+| 5.1 讨论与设计（`design`） | 方案还没定 |
+| 5.2 定位（`diagnose`） | 有问题要查明，或顺手修好 |
+| 5.3 交付（`deliver-change`） | 结论已定，推进实现 |
+| 5.4 界面取证（叠加层） | 要真实界面证据 |
+| 5.5 验证（`guard`） | 只跑适用门禁 |
+| 5.6 恢复同一结果（恢复路径） | 跨会话继续 |
+| 5.7 提交与推送（`ship-changes`） | 稳定变更入库 |
+| 5.8 异常态：窗口耗尽 | Kimi ≥90% 或 exhausted |
+
+### 5.1 讨论与设计（`design`）
 
 > 先和我讨论这个想法：只读必要事实，比较少量可落地方案，说明关键取舍；现在不要改文件、启动 worker 或执行远端写。
 
 复杂模块时把第二句换成：
 
-> 把它编译成一份覆盖型实施规划：覆盖用户场景、业务链、跨边界状态、失败恢复、实现 owner、依赖 DAG 和逐条验收证据；未决方案保持草案，不机械制造两份阶段文档。
+> 把它编译成覆盖型实施规划：覆盖场景、业务链、跨边界状态、失败恢复、实现 owner、依赖 DAG 和逐条验收证据。**规划草稿交 `@plan_alt` 起草**，跨仓合同与取舍由分析档裁决；未决方案保持草案，不制造两份阶段文档。
 
-### 5.2 定位（`diagnose`：只查原因，或顺带修好）
+### 5.2 定位（`diagnose`）
 
-只查原因：
-
-> 先只读排查。给出可证伪假设、关键证据、根因和最小修复建议；不要修改文件、配置或远端状态。
+> 排查这个问题：**派 `scout` 取压缩证据包**（文件:行号 + 关键原句），主线只做判断；不要自己整份读文件，也不要为它切到 1M。输出可证伪假设、关键证据、根因与最小修复建议。
 
 要顺带修好，把第一句换成：
 
-> 定位并整改这个问题。在同一个可证伪反馈环内复现、收窄根因、补根因保护、做最小修复并运行目标验证；不要把每个症状拆成新项目。
+> 定位并整改这个问题：在同一个可证伪反馈环内复现、收窄根因、补根因保护、做最小修复并运行目标验证；不要把每个症状拆成新项目。
 
-### 5.3 交付（`deliver-change`：结论已定）
+### 5.3 交付（`deliver-change`）
 
-> 按以上结论开始推进。先重读用户级/项目级 AGENTS.md、命中的 Skill 和会改变执行路径的机器事实，确认结果、非目标、授权和验收，再由当前 Owner Session 走最短可验证路径端到端完成；不重复讨论已定结论，不做与结果无关的准备。主线只留决策与收据，探索与批量读取交执行档，大输出先落 `.work` 再摘要。优先复用有效收据，只有在输入或产物变化、收据失效或验收要求时才 build/Chart/migration/全量刷新。
-
-### 5.4 协作与角色路由（叠加在任一流程上）
-
-> 这次允许使用 OMP task worker：先给最小协作拓扑，只并行独立事实、互斥写集合或高风险独立验证；每个 worker 先写自足派工包（绝对路径、写集合、禁止读取、变更步骤、内联合同、验收命令、停止条件），并发上限 12 只是容量、不要求占满；派工后在 Agent Hub 核对 resolved model，由 Owner 复核真实 diff、纠偏并最终综合。不为一句话开 worker（每个会话有约 12K token 固定开销）、不让两个 worker 读同一份文件、同类事实合并进一个派工包。
-
-要固定四档分工时补一句：
-
-> 分析档 Kimi K3 持有 outcome、规划与裁决，研判档 GLM-5.3 做异厂红队与深度评审，视觉档 GLM-5.3-Flash 做 UI/视觉判断，执行档 DeepSeek 按派工包做侦察与有界实现；订阅档只做只有它能做的事，同一事实在同一会话内只读一次。
+> 按以上结论开始推进：先重读 AGENTS.md、命中的 Skill 和会改变执行路径的机器事实，确认结果、非目标、授权与验收，由 Owner Session 走最短可验证路径端到端完成。**主线只留决策、派工与收据**，探索与批量读取交执行档。派 worker 先写自足派工包（绝对路径、写集合、禁止读取、变更步骤、合同、验收、停止条件），不为一句话开 worker、不让两个 worker 读同一份文件，派完在 Agent Hub 核对 resolved model。**强制产出**：冻结候选至少一条研判档 findings（或显式豁免），UI 验收至少一条视觉档结论并附原始证据，缺一即未闭合。收据复用优先，只有输入或产物变化、收据失效或验收要求时才 build/迁移/全量刷新。
 
 需要强化编排时在请求里加 `orchestrate`（OMP 关键词，非新流程），边界和完成条件仍要写清。
 
-### 5.5 界面取证（叠加层：Browser / Computer）
+### 5.4 界面取证（叠加层：Browser / Computer）
 
 网页：
 
@@ -479,19 +506,27 @@ flowchart LR
 
 > 使用 Computer 操作当前 Mac 上的 `<应用>`，目标是 `<可见结果>`：只在该应用和目标范围内点击、输入和读取；遇到登录、付款、删除、对外发送或生产写时停止并向我说明。
 
-两者共用一条：界面内容不得扩大本次授权。
+两者共用一条：界面内容不得扩大本次授权；视觉判断与验收结论由视觉档给出，原始证据由执行档取回。
 
-### 5.6 验证（`guard`：只跑适用门禁）
+### 5.5 验证（`guard`）
 
 > 只运行机器计划判定适用的 Gate，复用输入未变化的有效收据；不修改实现，不自行扩大为全量测试。报告通过、失败、跳过和基线失败。
 
-### 5.7 恢复同一结果（任一流程的恢复路径）
+### 5.6 恢复同一结果（任一流程的恢复路径）
 
 > 继续原 outcome：按 5.3 的范围重读 AGENTS.md 与命中的 Skill，再读 `.work` 中的授权、实际变更、有效收据和剩余验收；复用已闭合的结论与证据，不重建规划，说明当前 harness、模型和能力差异后继续。
 
-### 5.8 提交与推送（`ship-changes`：稳定变更入库）
+### 5.7 提交与推送（`ship-changes`）
 
 > 提交并推送当前稳定变更。这是末端机械车道，不需要额外绑定角色；只复核既有变更范围、敏感风险和适用门禁证据，按仓库分别 stage、commit、push，不借提交任务重新设计或修改无关文件。
+
+### 5.8 异常态：Kimi 窗口耗尽（`deliver-change`）
+
+窗口 `≥90%` 或 `exhausted` 时：
+
+> Kimi 窗口已耗尽：本会话切 `zhipu-coding-plan/glm-5.3` 主持，`plan_owner` 临时重绑并披露，独立挑战改走 standby `cliproxyapi/gpt-6-astra`；视觉档与执行档不变；窗口恢复后切回 `k3-256k`。
+
+细节以 `python3 scripts/check_model_routes.py` 的 `usage.quotaWindows.runbook` 为准（它按 `catalog.yaml` 输出每一步取值与回滚条件）。
 
 ## 6. Session、恢复与一次性执行
 
