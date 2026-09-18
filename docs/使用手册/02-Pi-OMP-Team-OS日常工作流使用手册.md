@@ -168,7 +168,7 @@ omp --profile team-os
 macOS 中文档写的 `Alt` 对应 `Option`（`⌥`）；如果 `⌥` 组合键输入了特殊字符，说明当前终端没有把
 Option 映射为 Meta，应改用命令入口或先通过 `/hotkeys` 核对实际绑定。
 
-不要把模型名称写死进组织内核或项目规则；当前经过验证的组合只记录在模型目录和 OMP 适配器。本 Profile 按四档绑定：分析档 `plan_owner`（Kimi K3）、研判档 `deep_review`（GLM-5.3）、视觉档 `ui_deep`（GLM-5.3-Flash）是订阅档角色，共同持有分析、评审、裁决和视觉判断；执行档由 `fast_worker` 与 `task.agentModelOverrides` 落实；`default` 指向分析档（主 Session 默认模型）。核对 resolved model 要双向看：订阅档角色不得静默回退或跨档，执行档也不得静默升级；模型切换或 fallback 发生时，必须在最终报告和适用收据中披露实际模型。
+不要把模型名称写死进组织内核或项目规则；当前经过验证的组合只记录在模型目录和 OMP 适配器。本 Profile 按四档绑定（2026-09-18 按实测数据重排，档位属角色、可热替换）：分析档 `plan_owner`/`default`（GLM-5.3）、研判档 `plan_alt`（K3-256K 起草）与 `deep_review`（K3 红队，与 owner 异厂）、视觉档 `ui_deep`（K3，前端审美第一）与 `ui_qa`（GLM-5.3-Flash 事实核对）；执行档 `fast_worker` 是池：GLM-5.3-Flash（订阅优先）→ 免费 Flash → DeepSeek（按量），由 `task.agentModelOverrides` 落实。核对 resolved model 要双向看：订阅档角色不得静默回退或跨档，执行档也不得静默升级；模型切换或 fallback 发生时，必须在最终报告和适用收据中披露实际模型。
 
 ### 3.4 Kimi K3、GLM-5.3、GLM-5.3-Flash、DeepSeek V4.1 Flash 怎样分工
 
@@ -216,10 +216,10 @@ flowchart TB
 
 | 档位/模型 | 默认拥有 | 最适合 | 默认不做 | 何时升级权限 |
 | --- | --- | --- | --- | --- |
-| 分析档：Kimi K3 | outcome、规划、跨边界设计与状态冻结、对评审发现的裁决、最终综合 | 需要连续理解范围、合同、集成和验证的主链；整仓与长文档阅读 | 已能写成派工包的常规实施；批量执行与批量读取 | 生产写仍需用户授权 |
-| 研判档：GLM-5.3 | 异厂红队、只读深度评审、失败面审计、诊断第二假设 | 冻结候选的反例搜索、跨厂独立判断、1M 纯文本全仓分析 | 最终综合；评审中改稿；无图像输入的视觉判断 | 高风险设计或用户显式要求独立挑战时启用；结论仍由分析档裁决 |
-| 视觉档：GLM-5.3-Flash | UI/UX 与视觉判断、前端交互状态、前端实现循环、多模态证据 | 需要看图、比对渲染结果、产出视觉验收结论的任务 | 跨仓架构与合同决策；最终综合；高风险独立评审 | 结论必须附 Browser/Computer 原始证据；设计定稿由分析档确认 |
-| 执行档：DeepSeek V4.1 Flash | 侦察与压缩证据包、批量事实、独立模型族挑战、派工包内的有界实现、`guard`/`smoke`/`refresh`/`prod-env` 叶子执行、机械文档与提交准备 | 大量独立读取、低延迟反馈、路径互斥且验收明确的工作；上下文窗口足以吞下派工包与目标文件 | 最终综合、跨边界设计与状态冻结、migration 或生产写 Owner | Provider/工具/恢复通过验证；派工包给出互斥写集合、内联合同和目标验证；Owner 复核真实 diff |
+| 分析档：GLM-5.3 | outcome、规划、跨边界设计与状态冻结、对评审发现的裁决、最终综合 | 智能指数国产并列第一（45）、1.3M 上下文、订阅额度节奏稳 | 已能写成派工包的常规实施；批量执行与批量读取 | 生产写仍需用户授权 |
+| 研判档：Kimi K3 | 覆盖型规划草稿、异厂红队、只读深度评审、失败面审计 | 前端总榜第一（审美）；1.05M 上下文适合整卷阅读；起草/红队均被包界定，薄额度够用 | 最终综合；评审中改稿 | 起草与 owner 异厂；findings 不得与 owner 同厂 |
+| 视觉档：K3（判断）/ GLM-5.3-Flash（QA） | `ui_deep` 做 UI 审美判断、设计合同与视觉基线；`ui_qa` 做截图/DOM 像素级事实核对 | 判断低频高价值（7 天仅 8 条消息级调用）；QA $0.09/M 输入 | 跨仓架构与合同决策；最终综合 | 结论必须附 Browser/Computer 原始证据 |
+| 执行档：GLM-5.3-Flash → 免费 Flash → DeepSeek（池） | 侦察与压缩证据包、批量事实、派工包内的有界实现、`guard`/`smoke`/`refresh`/`prod-env` 叶子执行 | 订阅优先（额度多）、免费变体兜底、按量 DeepSearch 第三；DeepSeek cache 命中 $0.006/M、并发 2500 | 最终综合、跨边界设计与状态冻结 | 池内降级是设计路径（`ompChainOverflowAllow`），非静默漂移 |
 
 分工按四档：订阅档（K3、GLM-5.3、GLM-5.3-Flash）只做只有它能做的事——裁决、红队与评审、视觉判断；其余工作默认走执行档（DeepSeek），末端机械车道（提交、推送、查收据、机械校准）不要求额外角色绑定。这样订阅窗口额度只花在无法替代的判断上。
 
@@ -229,19 +229,23 @@ flowchart TB
 - **视觉两级流水线。** 截图/DOM 的事实抽取交执行档（按量、带缓存、便宜），判断与修正交视觉档；不要把整页图像在订阅窗口里反复比对。
 - **订阅档不做批量执行。** Kimi 会员池与智谱积分都是 5 小时/周窗口；GLM-5.3 在高峰（工作日 14:00–18:00）要按 3 倍系数扣减，而 GLM-5.3-Flash 非高峰只要 0.4 倍，执行负载或高峰评审都会把窗口额度耗光。窗口与峰谷排程的完整规则见 `workflows/context-economy.md` 第 5 节；窗口数值的机器事实见 `catalog.yaml` 的 `quotaWindows`。
 
-这里不是按排行榜排职位。GLM-5.3 在开放模型里的 agentic coding 与终端任务表现最强，但套餐积分系数也最高，所以只承接必须由它做的红队与评审；GLM-5.3-Flash 是套餐内唯一多模态模型，因此视觉判断归它。Kimi K3 官方定位是长程编码与端到端知识工作，适合作为规划、跨边界设计与裁决 Owner。官方文档明确 `k3-256k` 在 256K 上下文内质量与 `k3` 相同、而 `k3`（1M）消耗约为其两倍，所以**子代理规划用 `k3-256k`**；但本机实测主会话上下文中位数 430K、73.8% 的请求超过 256K，因此**主 Session 默认留在 1M `k3`**，靠第 5 节纪律把主线占用压下来，而不是靠压缩窗口换额度。DeepSeek V4.1 Flash 官方强调速度、吞吐、Agent 和多模态能力，且按量计费、无窗口，适合承担执行带宽，但最终责任仍留给分析档。
+选型依据是 2026-09-18 实测数据，不是印象：GLM-5.3 与 Qwen3.8-Max 智能指数并列国产第一（45，K3 为 44 但上下文 1.05M 最大），owner 交给额度节奏更稳的 GLM 订阅；Kimi K3 在 Design Arena 前端总榜第一（1387，超过 GPT-6 Astra）、UI 组件国产第一，因此设计判断归它——该档调用极低频，不构成额度压力；GLM-5.3-Flash 智能指数 42、输入 $0.09/M，正好承接 QA 与执行池首选（订阅额度多）；DeepSeek V4.1 Flash 智能 40、前端榜第 7、cache 命中 $0.006/M、并发 2500，继续做按量兜底。豆包 Seed Code（指数 17*）与 MiniMax-M3（30）数据不支持接入。判断类角色一律锁 `max/high` 推理档（K3 max=44 vs low=30，差 14 分）。
+
+热替换：订阅告急按 `catalog.yaml` `quotaWindows` 的 `onExhausted` runbook 显式重绑（zhipu 耗尽 → owner 回摆 K3-256K 或 standby GPT、worker 落按量池；kimi 耗尽 → 起草落 GLM、红队落 standby），GPT 通道可用时按 `standbySelectors` 做高级替代；所有替换经 `temporaryBindings` 登记，`check_model_routes` 的代持过期守卫会自动催回滚。
 
 在 `/model` 的 Roles 视图配置六个自定义别名（分析/研判/视觉/执行四档，加套餐内高速备选和决定未绑定工作落点的 `default`）：
 
 | OMP 角色别名 | 指向 | 用途 |
 | --- | --- | --- |
-| `plan_owner` | Kimi K3（`k3-256k`，子代理规划） | 分析档：规划、跨边界设计、裁决与派工包 |
-| `deep_review` | GLM-5.3 | 研判档：异厂红队与深度只读评审 |
-| `plan_alt` | GLM-5.3 | 研判档：评审型规划草案（覆盖型规划、接口/失败面矩阵） |
-| `ui_deep` | GLM-5.3-Flash | 视觉档：UI/前端深度设计与视觉判断 |
-| `fast_worker` | DeepSeek V4.1 Flash | 执行档：侦察与派工包内的有界实现 |
+| `plan_owner` | GLM-5.3（订阅） | 分析档：规划、跨边界设计、裁决与派工包；standby `gpt-5.6-sol` |
+| `deep_review` | K3（`kimi-code/k3`） | 研判档：异厂红队与深度只读评审；standby `gpt-6-astra` |
+| `plan_alt` | K3（`k3-256k`） | 研判档：评审型规划草案（覆盖型规划、接口/失败面矩阵） |
+| `ui_deep` | K3（`kimi-code/k3`） | 视觉档：UI 审美判断与设计合同（前端总榜第一）；standby `gpt-6-astra` |
+| `ui_qa` | GLM-5.3-Flash | 视觉档：截图/DOM 事实核对（$0.09/M） |
+| `fast_worker` | GLM-5.3-Flash（池首选） | 执行档：侦察与通用有界实现；溢出 → 免费 Flash → DeepSeek |
+| `ui_impl` | DeepSeek V4.1 Flash | 执行档前端 lane：按视觉基线实现前端代码；design-critical 包显式升级 K3 |
 | `fast_alt` | `kimi-for-coding-highspeed` | 套餐内高速备选：只在显式选择时使用 |
-| `default` | Kimi K3（`k3-256k:high`） | 分析档：主 Session 默认模型与未绑定回退 |
+| `default` | GLM-5.3（`:high`） | 分析档：主 Session 默认模型与未绑定回退 |
 
 在配置文件中的持久化形状如下（当前实际值；换 Provider 时从 `/model` 的实际可用模型中选择，不能照抄）：
 
@@ -249,13 +253,14 @@ flowchart TB
 contextPromotion:
   enabled: true
 modelRoles:
-  plan_owner: kimi-code/k3-256k
-  plan_alt: zhipu-coding-plan/glm-5.3
-  deep_review: zhipu-coding-plan/glm-5.3
-  ui_deep: zhipu-coding-plan/glm-5.3-flash
-  fast_worker: teamorouter/deepseek-flash
+  plan_owner: zhipu-coding-plan/glm-5.3
+  plan_alt: kimi-code/k3-256k
+  deep_review: kimi-code/k3
+  ui_deep: kimi-code/k3
+  ui_qa: zhipu-coding-plan/glm-5.3-flash
+  fast_worker: zhipu-coding-plan/glm-5.3-flash
   fast_alt: kimi-code/kimi-for-coding-highspeed
-  default: kimi-code/k3-256k:high
+  default: zhipu-coding-plan/glm-5.3:high
 ```
 
 执行档不靠 `default` 落实：`default` 指向分析档，决定主 Session 默认模型；执行工作由 `@fast_worker` 和 Profile 的 `task.agentModelOverrides`（泛型 `task`/`scout`/`sonic`）绑定，因为**未绑定的子角色会继承父 Session 模型**。selector、覆盖项和 agent 回退链的声明位置是 `models/catalog.yaml` 的 `ompResolvedSelectors`、`ompTaskAgentModelOverrides`、`ompAgentFallbacks`（回退链只在同一计费档内），可用 `python3 scripts/check_model_routes.py` 核对配置漂移、混档回退、agent 链一致性、按档位/峰谷用量、**订阅窗口余量与必须执行的动作**、上下文浪费；用 `python3 scripts/check_role_routing.py --days 1 --folder <仓库>` 核对派工是否真的按档位发生（规划占比、视觉/研判档派工、主线执行占比、1M 晋升次数）。
@@ -462,7 +467,7 @@ flowchart LR
 **会话开头贴一次（纪律）**
 
 ```text
-工作纪律：规划至少一半交 @plan_alt 起草，裁决与综合留分析档；UI 与视觉验收必经视觉档；冻结候选至少一条异厂 findings；批量读取与命令执行交执行档；主线只做决策、派工与收据。默认停在 k3-256k，1M 只在显式说明或越阈值晋升时出现；窗口 ≥90% 或耗尽改派另一订阅档并披露。worker 只回带 文件:行号 的压缩证据包，同一事实只读一次，大输出先落 .work 再摘要。机制兜底：照 dispatchHint 派工（自动注入跨任务约束与上轮教训）、close 过三道门禁（分档 / 计划收据 / 缺口处置）、health 报停滞与未验证交付。
+工作纪律：规划至少一半交 @plan_alt 起草，裁决与综合留分析档；UI 与视觉验收必经视觉档；冻结候选至少一条异厂 findings；批量读取与命令执行交执行档；主线只做决策、派工与收据。owner 默认 GLM-5.3（订阅），起草/红队/设计判断用 K3（低频高价值）；执行档 worker 池 GLM-5.3-Flash 优先、DeepSeek 按量兜底；任一订阅 ≥90% 或耗尽按 runbook 显式重绑（含 standby GPT 高级替代）并披露。worker 只回带 文件:行号 的压缩证据包，同一事实只读一次，大输出先落 .work 再摘要。机制兜底：照 dispatchHint 派工（自动注入跨任务约束与上轮教训）、close 过三道门禁（分档 / 计划收据 / 缺口处置）、health 报停滞与未验证交付。
 ```
 
 | 场景 | 什么时候用 | 段落 |
@@ -559,7 +564,7 @@ B 桌面应用：
 ### 5.8 异常态：Kimi 窗口耗尽（`deliver-change`）
 
 ```text
-Kimi 窗口已耗尽：本会话切 zhipu-coding-plan/glm-5.3 主持，plan_owner 临时重绑并披露，独立挑战改走 standby cliproxyapi/gpt-6-astra；视觉档与执行档不变；窗口恢复后切回 k3-256k。每一步取值与回滚条件以 python3 scripts/check_model_routes.py 输出的 usage.quotaWindows.runbook 为准。
+zhipu 窗口已耗尽：owner 临时回摆 kimi-code/k3-256k（或最高风险走 standby cliproxyapi/gpt-5.6-sol），fast_worker 落 teamorouter/glm-5.3-flash-free 按量池，ui_qa 落 teamorouter/glm-5.3-flash；kimi 耗尽时反向：起草落 GLM-5.3、红队走 standby gpt-6-astra。每一步取值与回滚条件以 python3 scripts/check_model_routes.py 输出的 usage.quotaWindows.runbook 为准。
 ```
 
 ## 6. Session、恢复与一次性执行
@@ -822,6 +827,26 @@ Pi 原生提供终端 TUI、Session 树、`AGENTS.md`、Skill、文件和终端�
 不要一次安装整套来源不明的社区 Harness。每个扩展先审计源码、固定版本、限制权限，并用 [`../../workflows/harness-contract.md`](../../workflows/harness-contract.md) 检查上下文、权限、恢复、模型路由、协作、Browser/Computer 和证据合同。
 
 ## 12. 更新工作流和故障排查
+
+### 12.1 网络检索与浏览器全挂（2026-09-18 实战定位）
+
+症状：`web_search` 报 "All web search providers failed"；browser 打开任何站点（含 example.com/baidu）超时。三个独立根因，逐个排除：
+
+| 根因 | 判别 | 处置 |
+| --- | --- | --- |
+| Kimi 搜索绑死订阅额度 | 报错第一条 `kimi: 403`；`agent.db` 的 `usage_history` 里 kimi-code 5h 窗口 `exhausted` | 把 kimi 挪出搜索链首位（见下），等窗口重置自动恢复 |
+| 搜索代理的守护 Chromium 僵死 | curl 各站正常但 browser 连 baidu 都打不开；`pgrep -f omp.browser.headless.profile` 有残留进程 | `pkill -f omp.browser.headless.profile`（omp 会按需重建，已实测恢复） |
+| 抓取型 provider 走不稳的国际出口 | google/ecosia/mojeek 超时或 bot 挑战；Clash 在跑但国际站 5s+ | 搜索链改为免钥 API 型 provider 优先（小载荷更耐受） |
+
+搜索链配置（免钥优先、kimi 兜底，新会话生效；当前会话已缓存旧链时用 `omp q` 过渡）：
+
+```bash
+omp config set providers.webSearchOrder '["parallel","firecrawl","exa","duckduckgo","startpage","google","ecosia","mojeek","kimi"]'
+omp q "<查询>"          # 验证；免钥的 parallel 实测 1.3s 出结果
+```
+
+要点：`parallel`/`firecrawl`/`exa` 显式列入 webSearchOrder 即可免钥使用（文档实证）；`omp q` 每次新进程，立即吃到新配置；本会话内 web_search 工具要重启会话才换链。
+
 
 Team OS 源文件修改后：
 
