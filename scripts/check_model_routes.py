@@ -136,6 +136,23 @@ def temporary_bindings(catalog: dict) -> dict[str, dict]:
     return {str(role): dict(entry or {}) for role, entry in declared.items()}
 
 
+RUNTIME_MANAGED_ROLES = ("default",)
+
+
+def missing_role_gaps(configured: dict[str, str]) -> list[str]:
+    """The runtime rewrites modelRoles and drops `default` (observed twice).
+
+    An absent, runtime-managed key is a gap to verify by hand, not a wrong
+    binding; a present-but-different value is still an issue.
+    """
+    return [
+        f"role {role} is absent from runtime modelRoles; the harness manages this key — "
+        "verify the main session model in the UI and re-add it if it drifted"
+        for role in RUNTIME_MANAGED_ROLES
+        if not configured.get(role)
+    ]
+
+
 def check_routes(
     expected: dict[str, str], configured: dict[str, str], temporary: dict[str, dict] | None = None
 ) -> list[str]:
@@ -146,6 +163,8 @@ def check_routes(
         have = configured.get(role, "")
         if not want:
             issues.append(f"catalog does not declare role: {role}")
+            continue
+        if not have and role in RUNTIME_MANAGED_ROLES:
             continue
         override = temporary.get(role) or {}
         declared_override, _ = split_selector(str(override.get("selector", "")))
@@ -644,7 +663,7 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int, quota_db
     )
     providers = runtime_providers(target / "models.yml")
     known = known_provider_models(target / "models.db")
-    gaps: list[str] = []
+    gaps: list[str] = list(missing_role_gaps(configured))
     if not providers and not known:
         gaps.append(
             f"no models.yml or model cache under {target}: provider and model availability not verified"
