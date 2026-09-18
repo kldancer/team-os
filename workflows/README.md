@@ -36,4 +36,8 @@ intake → ready → doing → verifying → done
 
 UI 新设计、按稿还原和可见前端改动按需叠加 [UI 设计与前端交付工作流](ui-design-frontend.md)；它补设计基线与视觉证据，不增加流程所有者。
 
+真实网页入口的工具选择、Session 隔离、批处理和浏览器收据见 [真实浏览器验证工作流](real-browser-verification.md)；它不替代项目 Gate、UI 设计或生产授权。
+
+自然语言需求如何自动编译为最小结果合同见 [自然语言需求编译工作流](request-compiler.md)；它把内部合同字段留给 Owner，不要求用户重复填写。
+
 派工、读取纪律、证据包和执行模型分档见 [上下文经济与派工包](context-economy.md)；它约束上下文消耗和任务分派方式，不改变生命周期、证据和责任归属。

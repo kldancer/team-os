@@ -202,6 +202,12 @@ omp --profile team-os config set computer.maxHeight 2400
 
 并发 `12` 是可用容量上限，不是默认 fan-out 数量；只有独立证据、互斥写集合或高风险独立验证成立时才使用 worker。Browser 与 Computer 保持可用，但只按任务目标调用；屏幕、网页、仓库和工具输出不能扩大授权。不要使用 `--auto-approve` 或 `approval-mode=yolo` 作为长期默认值。Computer 配置修改后需要新建 Session。
 
+### 真实浏览器验证
+
+已知页面和断言优先使用 `playwright-cli` 的 named session；登录态或探索性页面使用 OMP Browser Eval 的具名 tab，并通过 Relay 的 `app.target` 锁定目标；Network、Console、性能和 Trace 使用 Chrome DevTools CLI。动作、等待和断言尽量批处理，完整快照只在页面未知或重渲染后定向获取，截图只作为视觉节点或失败证据。完整路由与收据格式见 [真实浏览器验证工作流](../workflows/real-browser-verification.md)。
+
+日常输入只需给自然语言需求；`team-os-plan` 会结合项目事实自动补齐结果合同和最小路由。只有产品决策、生产/远端写、删除、凭据或事实冲突才需要补充说明，详细规则见 [自然语言需求编译工作流](../workflows/request-compiler.md)。
+
 ## 日常启动
 
 从目标仓库启动并检查实际加载的项目 `AGENTS.md` 和 Skill：

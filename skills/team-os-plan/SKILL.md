@@ -5,6 +5,10 @@ description: 用户说“按结论开始推进”，或复杂、跨仓任务需�
 
 # Team OS 结果规划
 
+## 默认输入编译
+
+用户通常只提供自然语言需求，不要求填写结果合同字段。按 [`request-compiler.md`](references/request-compiler.md) 先自动判断意图，读取项目事实并补齐最小合同、Owner、拓扑、验收和停止条件；只有产品决策、高风险授权或事实冲突才向用户提问。需要确定性草案时运行同目录 [`scripts/compile_request.py`](scripts/compile_request.py)，它只分类和生成默认值，不授予权限，也不替代项目机器计划。
+
 ## 先建立一个结果
 
 从当前对话提炼并在工作中持续维护：

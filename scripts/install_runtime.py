@@ -24,12 +24,23 @@ COMMON_FILES = {
     "skills/team-os-plan/references/context-economy.md": ROOT
     / "workflows"
     / "context-economy.md",
+    "skills/team-os-plan/references/request-compiler.md": ROOT
+    / "workflows"
+    / "request-compiler.md",
+    "skills/team-os-plan/scripts/compile_request.py": ROOT / "scripts" / "compile_request.py",
     "skills/team-os-retrospective/SKILL.md": ROOT
     / "skills/team-os-retrospective/SKILL.md",
     "skills/team-os-ui/SKILL.md": ROOT / "skills/team-os-ui/SKILL.md",
     "skills/team-os-ui/references/ui-design-frontend.md": ROOT
     / "workflows"
     / "ui-design-frontend.md",
+    "skills/team-os-browser-verify/SKILL.md": ROOT
+    / "skills"
+    / "team-os-browser-verify"
+    / "SKILL.md",
+    "skills/team-os-browser-verify/references/real-browser-verification.md": ROOT
+    / "workflows"
+    / "real-browser-verification.md",
 }
 OMP_AGENT_FILES = {
     "agents/team-os-planner.md": ROOT / "omp/agents/team-os-planner.md",

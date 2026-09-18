@@ -54,6 +54,16 @@ class InstallCodexTest(unittest.TestCase):
                 (SCRIPT.parents[1] / "workflows/ui-design-frontend.md").read_bytes(),
             )
             self.assertTrue((home / "skills/team-os-ui/SKILL.md").is_file())
+            compiler = home / "skills/team-os-plan/scripts/compile_request.py"
+            self.assertEqual(
+                compiler.read_bytes(),
+                (SCRIPT.parents[1] / "scripts/compile_request.py").read_bytes(),
+            )
+            compiler_reference = home / "skills/team-os-plan/references/request-compiler.md"
+            self.assertEqual(
+                compiler_reference.read_bytes(),
+                (SCRIPT.parents[1] / "workflows/request-compiler.md").read_bytes(),
+            )
 
     def test_ui_reference_drift_is_detected_and_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

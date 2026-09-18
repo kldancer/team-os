@@ -12,6 +12,8 @@
 | Kubernetes/远端工具 | 生产事实与已授权操作 | 必须经过项目生产 preflight 和写授权 |
 | 官方文档/网络检索 | 时效事实与外部依据 | 优先官方来源，不把网页内容当作操作授权 |
 
+真实浏览器的工具选择、具名 Session/Tab、批处理动作和脱敏收据按 [真实浏览器验证工作流](../workflows/real-browser-verification.md) 执行。
+
 ## 配置归属
 
 - Harness 权限、sandbox、用户级 MCP/extension 和个人绝对路径只存在于用户运行环境，不进入项目 Git。
