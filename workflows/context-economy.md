@@ -51,22 +51,22 @@
 
 角色分四档，全部通过运行时别名显式绑定，不随会话默认漂移：
 
-- **分析档**（`@plan_owner` = Kimi K3，`k3-256k`）：**裁决型规划**——跨仓合同、状态冻结、方案取舍裁决、最终综合。默认走 256K 变体；确实需要 1M 时靠显式选择或上下文晋升（见第 5 节）。
-- **研判档**（`@deep_review` = GLM-5.3，`@plan_alt` = GLM-5.3）：**异厂红队与评审型规划**——冻结候选的 findings、失败面审计、诊断第二假设，以及覆盖型实施规划草稿、接口/失败面矩阵。只返回草案与证据，裁决权在分析档。GLM 无图像能力，不接视觉判断。
-- **视觉档**（`@ui_deep` = GLM-5.3-Flash）：UI/UX 设计、视觉与多模态判断、前端实现循环与视觉验收。结论必须有 Browser/Computer 原始证据支撑。
-- **执行档**（`@fast_worker` = DeepSeek）：侦察、压缩证据包、批量取证、派工包内的有界实现、门禁/冒烟/刷新/生产事实等叶子执行、收据写入、机械文档。
+- **分析档**（`@plan_owner` = GPT‑5.6 Sol）：**裁决型规划**——跨仓合同、状态冻结、方案取舍裁决、最终综合。
+- **研判档**（`@deep_review` = GLM-5.3，`@plan_alt` = K3‑256K）：**异厂红队与评审型规划**——冻结候选的 findings、失败面审计、诊断第二假设，以及覆盖型实施规划草稿、接口/失败面矩阵。只返回草案与证据，裁决权在分析档。GLM 无图像能力，不接视觉判断。
+- **视觉档**（`@ui_deep` = K3，`@ui_qa` = GLM-5.3-Flash）：UI/UX 设计、视觉与多模态判断、前端实现循环与视觉验收。结论必须有 Browser/Computer 原始证据支撑。
+- **执行档**（`@fast_worker` = GLM-5.3-Flash → DeepSeek）：侦察、压缩证据包、批量取证、派工包内的有界实现、门禁/冒烟/刷新/生产事实等叶子执行、收据写入、机械文档。
 - **套餐内高速备选**（`@fast_alt` = `kimi-for-coding-highspeed`）：只在负责人显式选择时使用；它与分析档同一额度池，不能用来缓解窗口压力。
 - **末端机械车道**：提交、推送、机械改文档、查询收据不需要额外角色绑定。
 
-`default` 指向分析档（当前 `kimi-code/k3-256k:high`），供主 Session 与未绑定回退使用。
+`default` 指向分析档（当前 `cliproxyapi/gpt-5.6-sol:medium`），供主 Session 与未绑定回退使用。
 
 ### 4.1 强制路由表（不是建议，是检查项）
 
 | 工作类型 | 必须由谁做 | 当前绑定（2026-09-18 数据驱动） | 可检查产出 |
 | --- | --- | --- | --- |
-| 跨仓合同、状态冻结、最终裁决与综合 | 分析档 | `plan_owner`/`default` = `zhipu-coding-plan/glm-5.3`（智能指数国产并列第一，1.3M 上下文） | 决策基线 |
+| 跨仓合同、状态冻结、最终裁决与综合 | 分析档 | `plan_owner`/`default` = `cliproxyapi/gpt-5.6-sol`（复杂专业工作默认 owner） | 决策基线 |
 | 覆盖型规划草稿、接口/失败面矩阵 | **研判档 `@plan_alt`** | `kimi-code/k3-256k`（起草被包界定，薄额度够用） | 草案 + 需裁决点清单 |
-| 冻结候选的异厂挑战与深度评审 | 研判档 `@deep_review` | `kimi-code/k3`（与 GLM owner 异厂；standby `cliproxyapi/gpt-6-astra`） | 至少 1 条 findings 或显式豁免 |
+| 冻结候选的异厂挑战与深度评审 | 研判档 `@deep_review` | `zhipu-coding-plan/glm-5.3`（与 GPT owner 异厂；standby K3） | 至少 1 条 findings 或显式豁免 |
 | UI 审美判断、设计合同与视觉基线 | 视觉档 `@ui_deep` | `kimi-code/k3`（Design Arena 前端总榜第一、UI 组件国产第一；低频高价值不吃额度） | 一条视觉结论 + 原始证据引用 |
 | 截图/DOM 像素级事实核对 | 视觉档 `@ui_qa` | `zhipu-coding-plan/glm-5.3-flash`（$0.09/M 输入） | 事实回执 |
 | 前端代码实现（有视觉基线依赖） | 执行档前端 lane `@ui_impl` | `teamorouter/deepseek-flash`（本仓三波实证、前端榜第 7、按量）→ `glm-5.3-flash-free` 兜底；**design-critical 包由 owner 显式重绑 `kimi-code/k3`**（standby 阶梯）后执行，收据披露 | 页面实现 + VERDICT |
@@ -97,7 +97,7 @@
 
 **前端 lane 与通用 lane 分流**：`route_work` 对含 UI 路径的任务派 `ui_impl`（DeepSeek 实现 + 视觉档基线前置），非 UI 任务仍派 `fast_worker`（GLM-Flash 池优先）。升级到 K3 是 owner 的显式重绑（`design-system`/共享视觉组件路径自动标记 design-critical），不是链内静默跳档。
 
-**热替换架构**：档位属于角色而非模型家族（`roleTiers`），换绑不换档、度量口径不变。替换入口有两层——①订阅告急：`quotaWindows` 的 `onExhausted` runbook 给出该通道全部角色的重绑目标（zhipu 耗尽 → owner 回摆 `k3-256k` 或 standby `gpt-5.6-sol`、worker 落按量池；kimi 耗尽 → 起草落 GLM、红队落 standby `gpt-6-astra`）；②高级替代：`standbySelectors` 登记 GPT 通道（`cliproxyapi`）按角色显式切换。所有替换经 `temporaryBindings` 登记、由 `check_model_routes` 的代持过期守卫自动催回滚。执行角色的写入仍由负责人复核真实 diff 与集成入口。
+**热替换架构**：档位属于角色而非模型家族（`roleTiers`），换绑不换档、度量口径不变。默认 `@plan_owner`/`default` 走 GPT‑5.6 Sol，`@plan_alt` 走 K3‑256K，`@deep_review` 走 GLM‑5.3，`@ui_deep` 走 K3，执行档走 GLM‑Flash→DeepSeek。替换入口有三层——①会话级 `--model` 或 `/model`，只影响当前会话；②Profile 的 `modelRoles` 持久覆盖；③订阅告急时 `quotaWindows` 的 `onExhausted` runbook 显式重绑。所有替换必须披露旧值、新值、作用域、恢复方式和 resolved model；`temporaryBindings` 用于需要跨运行恢复的例外，`check_model_routes` 拒绝未声明漂移。执行角色的写入仍由负责人复核真实 diff 与集成入口。
 
 ### 4.3 失败预算与停线（复盘结论，2026-09-17）
 
@@ -120,8 +120,9 @@
 
 | 通道 | 计费 | 窗口 | 排程含义 |
 | --- | --- | --- | --- |
-| `kimi-code`（Kimi 会员） | 订阅 | 5 小时 + 周，与网页/研究/Office/Kimi Code 共享池，数额未公开、不用不累积 | 只做分析、裁决和长上下文工作；不做批量执行，不与网页端抢同一池 |
-| `zhipu-coding-plan` | 订阅 | 5 小时 + 周积分（Pro 约 400 prompt/5h、2000/周）；**GLM-5.3 高峰 3 倍、非高峰 1 倍；GLM-5.3-Flash 高峰 1.2 倍、非高峰 0.4 倍**；高峰为工作日 14:00–18:00，周末全天非高峰 | 研判档评审全部排非高峰或周末（高峰 3 倍代价最高）；视觉档在非高峰 0.4 倍时可放心做前端循环；积分耗尽须等下一个 5 小时周期 |
+| `cliproxyapi`（Codex OAuth） | 订阅 | 以当前 Codex 账号窗口为准 | 默认 owner/default；复杂规划和最终综合，不做批量执行 |
+| `kimi-code`（Kimi 会员） | 订阅 | 5 小时 + 周，与网页/研究/Office/Kimi Code 共享池，数额未公开、不用不累积 | 评审型规划、视觉设计和长上下文工作；不做批量执行 |
+| `zhipu-coding-plan` | 订阅 | 5 小时 + 周积分（Pro 约 400 prompt/5h、2000/周）；**GLM-5.3 高峰 3 倍、非高峰 1 倍；GLM-5.3-Flash 高峰 1.2 倍、非高峰 0.4 倍**；高峰为工作日 14:00–18:00，周末全天非高峰 | 深度评审和轻量执行；高峰重活排非高峰；积分耗尽须等下一个 5 小时周期 |
 | `teamorouter`（DeepSeek） | 按量 | 无窗口；高峰为工作日 09:00–12:00、14:00–18:00，谷时半价 | 批量执行、侦察、机械任务全放这里，并尽量排谷时 |
 
 派生规则：
@@ -129,18 +130,18 @@
 - **窗口内只做只有该模型能做的事**：分析档做裁决与综合，研判档做红队与评审，视觉档做视觉判断。通用劳动（读取、搬运、批量实现、机械收据）一律交无窗口的执行档。
 - **不把执行负载塞进订阅窗口**：执行吃掉积分后，评审和视觉会在同一个 5 小时窗口里被卡死；反过来，任何时刻都不要用按量通道做"只有订阅档模型能做"的判断。
 - **视觉两级流水线**：先由执行档从截图/DOM 抽取事实（按量、带缓存、便宜），再交视觉档做判断与修正；避免把整页图像塞进订阅窗口反复比对。
-- **窗口耗尽后的降档顺序是显式的**：`k3-256k` → `kimi-for-coding`、`glm-5.3` → `glm-5`、视觉无同档替代时报告"视觉判断延后/需跨档"，不得静默换模型。
+- **窗口耗尽后的降档顺序是显式的**：按 `catalog.yaml` 的 `standbySelectors` 和 `quotaWindows.onExhausted` 选择；视觉无同档替代时报告"视觉判断延后/需跨档"，不得静默换模型。
 - **观察期纪律**：Kimi 池的窗口数值未公开，按每 5 个任务记录一次窗口消耗，命中限流时记录当时的档位与任务类型，用来调整分档而不是靠印象；GLM 的系数与扣减可在套餐控制台的用量统计中直接核对。
-- **256K 起步，1M 按需晋升**：默认角色与 `@plan_owner` 都停留在 `k3-256k`；运行时开启 `contextPromotion` 并声明 `contextPromotionTarget: kimi-code/k3`，只有上下文越过阈值（或溢出）时才自动晋升到 1M，且晋升在压缩之前发生、以临时 `model_change` 记录。**1M 不是默认绑定**——禁止的是把 1M 写进 `default`/`plan_owner`，不是禁止它被晋升到达；但"晋升成为常态"等于把 1M 变回默认档，因此配套纪律是：**主线瘦身把主会话常态上下文压回 256K 以内**（整改前中位 430K，目标 <200K）。若 `check_role_routing.py` 显示 `promotionsTo1M` 与主会话上下文中位持续高于阈值，先按第 4.2 节瘦身，而不是接受晋升常态化。
+- **256K 起步，1M 按需晋升**：短任务使用角色默认模型；需要长上下文时才由负责人显式切换或按运行时阈值晋升，晋升以临时 `model_change` 记录，不改写角色映射。若 `check_role_routing.py` 显示晋升与主会话上下文持续偏高，先按第 4.2 节瘦身，而不是接受晋升常态化。
 - **窗口护栏（阈值即动作）**：`scripts/check_model_routes.py` 的 `usage.quotaWindows` 每次报告订阅窗口余量，并按目录里的阈值给出必须执行的动作：
   - `≥70%`（warm）：把重评审与规划排到非高峰/周末，短任务继续留在 256K 档；
   - `≥90%` 或 `exhausted`：**新的规划与评审改派另一订阅档**（分析↔研判互换），并在报告中披露这次跨档切换；同池的 `@fast_alt` 不参与救火。
 - **订阅档耗尽的 runbook（必须显式，不能等回退）**：agent 回退链只在同一计费档内，所以**分析档窗口耗尽时链里的第二项同样不可用**，跨档回退又是被禁止的隐式行为。正确处置是显式重绑并披露：
-  1. **会话级**：当前会话用 `/model` 切到 `zhipu-coding-plan/glm-5.3`（只影响本会话，不改角色映射）；
-  2. **角色级**（缺口持续整段时间时）：把 `plan_owner` 临时重绑到 `zhipu-coding-plan/glm-5.3`，并在报告里说明这次跨档；
+  1. **会话级**：当前会话用 `/model` 切到目录允许的备用模型（只影响本会话，不改角色映射）；
+  2. **角色级**（缺口持续整段时间时）：把受影响角色临时重绑到 `standbySelectors` 指定的备用模型，并在报告里说明这次跨档；
   3. **补偿异厂独立性**：owner 落到研判档后，独立挑战改由 standby 通道承担（`cliproxyapi/gpt-6-astra`），其 findings 计入 §4.1 的检查项；不把同一模型的自评当成异厂 findings；
   4. **不动**：视觉档仍 `glm-5.3-flash`、执行档仍 `deepseek-flash`（按量，与该窗口无关）；
-  5. **恢复**：`usage_history` 报 `ok` 后把 owner 切回 `k3-256k`，并在报告里声明已恢复。
+  5. **恢复**：`usage_history` 报 `ok` 后清除临时绑定并恢复 `catalog.yaml` 默认，并在报告里声明已恢复。
   以上动作以 `models/catalog.yaml` 的 `quotaWindows.<window>.onExhausted` 为准，`check_model_routes.py` 在判定 `exhausted` 时直接输出这份 runbook。
 - **入口**：`usage.byTier`（档位与峰谷）、`usage.quotaWindows`（窗口余量与动作）、`usage.contextWaste`（上下文浪费）是同一份报告里的三个机器事实；route 漂移、混档回退与窗口告警都会在这里出现。
 

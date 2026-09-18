@@ -17,29 +17,52 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 omp --profile team-os
 ```
 
-随后在交互界面完成 Provider 登录和 `/model` 选择。凭据和 Provider selector 不写入 Team OS 仓库；四模型组合的当前路由是：分析档 `@plan_owner`（Kimi K3）做 outcome、规划、跨边界设计与裁决、最终综合；研判档 `@deep_review`（GLM-5.3）做异厂红队与只读深度评审；视觉档 `@ui_deep`（GLM-5.3-Flash）做 UI/前端深度设计与视觉判断；其余侦察、批量取证、有界实现、门禁/冒烟/刷新/生产事实执行、机械文档与提交准备由执行档 `@fast_worker`（DeepSeek）承担。命名 agent 绑别名，泛型 `task`/`scout`/`sonic` 由 `task.agentModelOverrides` 绑定；`default` 指向分析档并决定主 Session 默认模型，末端机械车道不要求额外角色绑定。
+随后在交互界面完成 Provider 登录和 `/model` 选择。凭据和 Provider selector 不写入 Team OS 仓库；默认职责与模型路由是：分析档 `@plan_owner`（GPT‑5.6 Sol）做 outcome、规划、跨边界设计与裁决、最终综合；研判档 `@plan_alt`（K3‑256K）起草、`@deep_review`（GLM‑5.3）红队与只读深度评审；视觉档 `@ui_deep`（K3）做 UI/前端深度设计，`@ui_qa`（GLM‑5.3‑Flash）做截图事实核对；其余侦察、批量取证、有界实现、门禁/冒烟/刷新/生产事实执行、机械文档与提交准备由执行档 `@fast_worker` 承担。命名 agent 绑别名，泛型 `task`/`scout`/`sonic` 由 `task.agentModelOverrides` 绑定；`default` 指向 GPT‑5.6 Sol，末端机械车道不要求额外角色绑定。
 
-## 三模型角色绑定
+## 角色绑定
 
 安装器会投影五个 OMP 原生 task agent：
 
 | Agent | 角色别名 | 默认模型 | 责任 |
 | --- | --- | --- | --- |
-| `team-os-planner` | `@plan_owner` | Kimi K3 | 有界规划、DAG、验收映射和派工包 |
-| `team-os-ui-designer` | `@ui_deep` | GLM-5.3-Flash | UI/UX、交互状态和视觉基线 |
+| `team-os-planner` | `@plan_owner` | GPT‑5.6 Sol | 有界规划、DAG、验收映射和派工包 |
+| `team-os-ui-designer` | `@ui_deep` | K3 | UI/UX、交互状态和视觉基线 |
 | `team-os-deep-reviewer` | `@deep_review` | GLM-5.3 | 接口、架构和高风险设计只读评审 |
-| `team-os-fast-scout` | `@fast_worker` | DeepSeek Flash | 压缩证据包和独立模型族挑战 |
-| `team-os-bounded-worker` | `@fast_worker` | DeepSeek Flash | 按派工包的执行、写集合内实现和目标验证 |
+| `team-os-fast-scout` | `@fast_worker` | GLM‑5.3‑Flash → DeepSeek | 压缩证据包和独立模型族挑战 |
+| `team-os-bounded-worker` | `@fast_worker` | GLM‑5.3‑Flash → DeepSeek | 按派工包的执行、写集合内实现和目标验证 |
 
-登录 Provider 后打开 `/model` 的 Roles 视图：`plan_owner`/`deep_review`/`ui_deep` 指向订阅档（Kimi、GLM），`fast_worker` 指向 DeepSeek，`fast_alt` 指向套餐内高速备选，`default` 指向分析档（主 Session 默认模型）。同时在 `config.yml` 写 `task.agentModelOverrides`，把泛型 `task`/`scout`/`sonic` 绑到 `@fast_worker`，否则它们会继承父 Session 模型。不同 Provider 的 selector 可能不同，安装器不猜测模型 ID，也不覆盖认证和 `config.yml`。第一次分派每种 Agent 时，在 Agent Hub 检查 resolved model：订阅档角色不得静默回退或跨档，执行角色不得静默升级；映射缺失或 fallback 不符时停止该 worker，先修正角色映射。
+登录 Provider 后打开 `/model` 的 Roles 视图：角色职责保持不变，selector 可以按会话临时替换。`default`/`plan_owner` 默认指向 GPT‑5.6 Sol，`plan_alt` 指向 K3‑256K，`deep_review` 指向 GLM‑5.3，`ui_deep` 指向 K3，`fast_worker` 指向 GLM‑5.3‑Flash 并允许按量溢出到 DeepSeek。泛型 `task`/`scout`/`sonic` 仍须绑到 `@fast_worker`，否则会继承父 Session 模型。不同 Provider 的 selector 可能不同，安装器不猜测模型 ID，也不覆盖认证和 `config.yml`。第一次分派每种 Agent 时，在 Agent Hub 检查 resolved model：订阅档角色不得静默回退或跨档，执行角色不得静默升级；映射缺失或 fallback 不符时停止该 worker，先修正角色映射。
 
 映射可以用 [`../scripts/check_model_routes.py`](../scripts/check_model_routes.py) 一次性核对：它比对 `models/catalog.yaml` 的 `ompResolvedSelectors` 与 Profile `config.yml` 的实际绑定，并汇总运行时统计库中每个模型/agent 类型的真实用量，用于判断执行是否真的落在快速档。
 
-GLM-5.3 的 specialist 限制来自额度结构：它的积分系数最高，因此只承接必须由它做的红队与评审，改稿权留给分析档。GLM-5.3-Flash 是套餐内唯一多模态模型，视觉判断交它，事实抽取交执行档。DeepSeek 执行 worker 只在派工包给出互斥写集合、内联合同和目标验证时使用，Owner 复核真实 diff 后集成。
+### 会话中临时换绑角色模型
+
+模型切换分为三种作用域，默认角色职责不变：
+
+```bash
+# 当前会话启动时临时指定角色解析结果
+omp --profile team-os --model @plan_owner
+
+# 当前会话直接使用某个模型，不改变 Profile
+omp --profile team-os --model cliproxyapi/gpt-6-astra
+```
+
+交互会话中使用 `/model` 的 Roles 视图选择角色或具体模型；也可以提出明确指令，例如“`plan_owner` 角色变更为 `kimi-code/k3-256k`”。这句话是变更意图，必须实际落到 `/model` 的角色选择或 Profile 配置后才算完成，不能只在对话里口头确认。临时切换完成后要回报：角色、旧模型、新模型、作用域（当前会话/持久 Profile）、fallback 链和恢复方式；清除临时绑定即恢复 `catalog.yaml` 默认。
+
+持久覆盖只写 Profile 的 `config.yml` `modelRoles`，不改角色文档：
+
+```yaml
+modelRoles:
+  plan_owner: cliproxyapi/gpt-6-astra
+```
+
+改完运行 `scripts/check_model_routes.py`，并确认 Agent Hub 的 resolved model badge。模型不可用或 fallback 不符合目录时必须停在路由修正，不得静默换 Provider。
+
+GLM-5.3 的 specialist 限制来自额度结构：它的积分系数最高，因此只承接必须由它做的红队与评审，改稿权留给分析档。GLM-5.3-Flash 负责低成本视觉事实与执行；K3 负责视觉设计和评审型规划；DeepSeek 是执行档的按量溢出。执行 worker 只在派工包给出互斥写集合、内联合同和目标验证时使用，Owner 复核真实 diff 后集成。
 
 ## Codex 订阅经 CLIProxyAPI 接入
 
-当前默认组合的三个通道是 Kimi 会员（`kimi-code`）、智谱编码套餐（`zhipu-coding-plan`）与 DeepSeek（`teamorouter`，官方 `deepseek` 为同档回退）。GPT 通道经本机 CLIProxyAPI 使用 Codex OAuth，降为 standby 第三意见。CLIProxyAPI 下游 Key 只是本机代理认证，不是 OpenAI 官方 API Key；不得对外共享或开放代理端口，也不得用它绕过账号、速率或用量限制。
+当前默认组合的四个通道是 CLIProxyAPI/Codex OAuth（`cliproxyapi`，owner/default）、Kimi 会员（`kimi-code`，plan_alt/ui_deep）、智谱编码套餐（`zhipu-coding-plan`，deep_review）与 DeepSeek（`teamorouter`，执行溢出）。CLIProxyAPI 下游 Key 只是本机代理认证，不是 OpenAI 官方 API Key；不得对外共享或开放代理端口，也不得用它绕过账号、速率或用量限制。
 
 当前安全拓扑：
 
@@ -54,7 +77,7 @@ OMP ──DeepSeek Key───────────────────�
 - `~/.cli-proxy-api/`：CLIProxyAPI 自己保存 Codex OAuth；不进入 Team OS。
 - macOS 钥匙串服务 `team-os-cliproxyapi-local-key`：保存同一个下游 Key。
 - OMP Profile 的 `models.yml`：只保存从钥匙串读取 Key 的命令，不保存明文 Key。
-- OMP Profile 的 `config.yml`：保存 `modelRoles` 角色映射（订阅档指向 Kimi/GLM，`fast_worker` 指向 DeepSeek，`default` 指向分析档）；实际 selector 由 `models/catalog.yaml` 的 `ompResolvedSelectors` 声明，agent 回退链由 `ompAgentFallbacks` 声明，用 `scripts/check_model_routes.py` 核对漂移、混档回退与按档位/峰谷的用量。
+- OMP Profile 的 `config.yml`：保存 `modelRoles` 角色映射（默认 owner 指向 GPT‑5.6 Sol，研判/视觉/执行档按目录绑定）；实际 selector 由 `models/catalog.yaml` 的 `ompResolvedSelectors` 声明，agent 回退链由 `ompAgentFallbacks` 声明，用 `scripts/check_model_routes.py` 核对漂移、混档回退与按档位/峰谷的用量。
 
 安装、OAuth 和检查：
 

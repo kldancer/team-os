@@ -1,6 +1,6 @@
 ---
 name: team-os-ui-implementer
-description: 用 DeepSeek V4.1 Flash 按视觉基线与设计合同实现前端代码；design-critical 包由 owner 显式升级到 K3 执行。
+description: 用 @ui_impl 按视觉基线与设计合同实现前端代码；design-critical 包由 owner 显式升级到高能力执行模型。具体模型由当前 Profile 的角色映射决定。
 model: ["@ui_impl", "teamorouter/glm-5.3-flash-free"]
 ---
 

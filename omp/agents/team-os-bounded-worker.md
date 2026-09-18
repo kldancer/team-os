@@ -1,6 +1,6 @@
 ---
 name: team-os-bounded-worker
-description: 用 DeepSeek V4.1 Flash按派工包完成写集合互斥、验收明确的实现，返回补丁、收据与风险交给 Owner。
+description: 用 @fast_worker 按派工包完成写集合互斥、验收明确的实现，返回补丁、收据与风险交给 Owner。具体模型由当前 Profile 的角色映射决定。
 model: ["@fast_worker", "teamorouter/glm-5.3-flash-free", "teamorouter/deepseek-flash"]
 tools: [read, edit, write, grep, glob, lsp, bash]
 thinking-level: high

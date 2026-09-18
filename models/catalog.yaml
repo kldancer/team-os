@@ -1,5 +1,5 @@
 version: 3
-reviewedAt: 2026-09-14
+reviewedAt: 2026-09-18
 policy: capability-first-explicit-runtime-binding
 capabilityProfiles:
   owner:
@@ -19,7 +19,7 @@ runtimePolicy:
   bindingLocation: runtime-user-config
   rule: Team OS 不保存凭据，不因角色名或失败静默切换模型/Provider
 activePortfolio:
-  id: cn-k3-glm-ds-v1
+  id: cn-gpt-k3-glm-ds-v2
   scope: omp-interactive-software-work
   evidencePolicy: official-capability-plus-local-task-observation
   # 档位属于「角色」而不是「模型家族」：换绑不换档，热替换才成立。
@@ -33,18 +33,36 @@ activePortfolio:
     fast_worker: execution
     ui_impl: execution
     fast_alt: execution
+  roleBindingPolicy:
+    sourceOfTruth: ompResolvedSelectors
+    roleContract: roleTiers
+    defaultModel: cliproxyapi/gpt-5.6-sol
+    sessionOverride:
+      supported: true
+      disclosure: required
+      scope: current-session-only
+      restore: clear-temporary-binding
+    persistentOverride:
+      supported: true
+      location: runtime-user-config.modelRoles
+      audit: check_model_routes.py
+    fallback:
+      source: ompAgentFallbacks
+      silentProviderSwitch: forbidden
+      resolvedModelBadge: required
+    changePhrase: "<role>角色变更为<model>"
   defaults:
-    outcomeOwner: zhipu-coding-plan/glm-5.3
-    planningOwner: zhipu-coding-plan/glm-5.3
+    outcomeOwner: cliproxyapi/gpt-5.6-sol
+    planningOwner: cliproxyapi/gpt-5.6-sol
     reviewPlanning: kimi-code/k3-256k
     visualAcceptance: kimi-code/k3
-    finalSynthesis: zhipu-coding-plan/glm-5.3
-    crossBoundaryDesign: zhipu-coding-plan/glm-5.3
-    deepReview: kimi-code/k3
+    finalSynthesis: cliproxyapi/gpt-5.6-sol
+    crossBoundaryDesign: cliproxyapi/gpt-5.6-sol
+    deepReview: zhipu-coding-plan/glm-5.3
     architectureChallenge: cliproxyapi/gpt-6-astra
     uiDeepDesign: kimi-code/k3
     uiQa: zhipu-coding-plan/glm-5.3-flash
-    frontendDeepReview: kimi-code/k3
+    frontendDeepReview: zhipu-coding-plan/glm-5.3
     generalImplementation: zhipu-coding-plan/glm-5.3-flash
     leafExecution: zhipu-coding-plan/glm-5.3-flash
     fastScout: zhipu-coding-plan/glm-5.3-flash
@@ -73,7 +91,7 @@ activePortfolio:
         # kimi 现承载 plan_alt(起草)/deep_review(红队)/ui_deep(设计判断)/fast_alt
         rebindPlanAlt: zhipu-coding-plan/glm-5.3
         rebindDeepReview: cliproxyapi/gpt-6-astra
-        rebindUiDeep: zhipu-coding-plan/glm-5.3
+        rebindUiDeep: zhipu-coding-plan/glm-5.3-flash
         keepOwner: true
         disclose: kimi-exhaustion-moves-review-to-standby-and-drafts-to-glm-owner-tier
         resumeWhen: window-resets-and-usage_history-reports-ok
@@ -86,12 +104,10 @@ activePortfolio:
       warmAt: 0.7
       downgradeAt: 0.9
       onExhausted:
-        # zhipu 现承载 owner(default/plan_owner)/fast_worker/ui_qa
-        rebindOwner: kimi-code/k3-256k
-        rebindOwnerStandby: cliproxyapi/gpt-5.6-sol
+        # zhipu 现承载 deep_review；owner(default/plan_owner) 走 CLIProxyAPI。
         rebindFastWorker: teamorouter/glm-5.3-flash-free
         rebindUiQa: teamorouter/glm-5.3-flash
-        disclose: zhipu-exhaustion-swaps-owner-to-k3-and-workers-to-payg-pool
+        disclose: zhipu-exhaustion-swaps-review-to-kimi-standby-and-workers-to-payg-pool
         resumeWhen: window-resets-and-usage_history-reports-ok
       note: 高峰 3 倍积分（GLM-5.3）/1.2 倍（Flash），非高峰 1 倍/0.4 倍；重活排非高峰
   ompTaskAgentModelOverrides:
@@ -99,19 +115,19 @@ activePortfolio:
     scout: "@fast_worker"
     sonic: "@fast_worker"
   ompRoleAliases:
-    plan_owner: zhipu-coding-plan/glm-5.3
+    plan_owner: cliproxyapi/gpt-5.6-sol
     plan_alt: kimi-code/k3-256k
-    deep_review: kimi-code/k3
+    deep_review: zhipu-coding-plan/glm-5.3
     ui_deep: kimi-code/k3
     ui_qa: zhipu-coding-plan/glm-5.3-flash
     fast_worker: zhipu-coding-plan/glm-5.3-flash
     ui_impl: teamorouter/deepseek-flash
     fast_alt: kimi-code/kimi-for-coding-highspeed
   ompResolvedSelectors:
-    default: zhipu-coding-plan/glm-5.3
-    plan_owner: zhipu-coding-plan/glm-5.3
+    default: cliproxyapi/gpt-5.6-sol
+    plan_owner: cliproxyapi/gpt-5.6-sol
     plan_alt: kimi-code/k3-256k
-    deep_review: kimi-code/k3
+    deep_review: zhipu-coding-plan/glm-5.3
     ui_deep: kimi-code/k3
     ui_qa: zhipu-coding-plan/glm-5.3-flash
     fast_worker: zhipu-coding-plan/glm-5.3-flash
@@ -131,9 +147,9 @@ activePortfolio:
       planning-not-half-to-adjudication: 覆盖型规划草稿交 @plan_alt 起草，分析档只做裁决
     note: 同一验收点连续失败到该轮数即停线回规划；两处脚本与文档都读这里，不各写一个字面量
   standbySelectors:
-    plan_owner: cliproxyapi/gpt-5.6-sol
+    plan_owner: zhipu-coding-plan/glm-5.3
     plan_alt: cliproxyapi/gpt-5.6-sol
-    deep_review: cliproxyapi/gpt-6-astra
+    deep_review: kimi-code/k3
     ui_deep: cliproxyapi/gpt-6-astra
     fast_worker: teamorouter/deepseek-flash
     ui_impl: kimi-code/k3
@@ -151,9 +167,9 @@ activePortfolio:
     teamorouter: pay-as-you-go
     deepseek: pay-as-you-go
   ompAgentFallbacks:
-    team-os-planner: ["@plan_owner", "cliproxyapi/gpt-5.6-sol"]
+    team-os-planner: ["@plan_owner", "zhipu-coding-plan/glm-5.3", "kimi-code/k3-256k"]
     team-os-planner-alt: ["@plan_alt", "zhipu-coding-plan/glm-5.3"]
-    team-os-deep-reviewer: ["@deep_review", "cliproxyapi/gpt-6-astra"]
+    team-os-deep-reviewer: ["@deep_review", "kimi-code/k3"]
     team-os-ui-designer: ["@ui_deep", "cliproxyapi/gpt-6-astra"]
     team-os-fast-scout: ["@fast_worker", "teamorouter/glm-5.3-flash-free", "teamorouter/deepseek-flash"]
     team-os-bounded-worker: ["@fast_worker", "teamorouter/glm-5.3-flash-free", "teamorouter/deepseek-flash"]
@@ -164,14 +180,14 @@ activePortfolio:
     - team-os-fast-scout
     - team-os-bounded-worker
   providerRoutes:
-    analysis: kimi-code-oauth-or-api-key
+    analysis: local-loopback-cliproxyapi-over-codex-oauth
     adjudication: zhipu-coding-plan-api-key
     execution: teamorouter-deepseek-flash
-    standby: local-loopback-cliproxyapi-over-codex-oauth
+    standby: kimi-code-oauth-or-api-key
     noSilentCrossProviderFallback: true
   models:
     kimi-k3:
-      admission: default-owner
+      admission: planning-and-review-standby
       runtimeModelId: k3-256k
       runtimeModelIdLong: k3
       runtimeModelIdLongContext: k3
@@ -180,7 +196,7 @@ activePortfolio:
       runtimeContextWindowLong: 1048576
       evidence:
         official: flagship-long-horizon-coding-and-end-to-end-knowledge-work
-        local: selected-as-analysis-tier-after-cn-portfolio-decision
+        local: selected-as-planning-and-review-tier-after-gpt-owner-decision
       strengths:
         - scope-and-plan-synthesis
         - cross-boundary-design-and-state-freeze
@@ -266,15 +282,15 @@ activePortfolio:
         - target-tests-and-diff-reviewed-by-owner
       handoffContract: returns-bounded-evidence-or-patch-and-target-validation-to-current-owner
     gpt-5.6-sol:
-      admission: standby-third-opinion
+      admission: default-owner
       evidence:
         official: flagship-for-complex-professional-work
-        local: kept-as-third-opinion-and-fallback-after-cn-portfolio-decision
+        local: selected-as-default-and-planning-owner-when-cli-proxy-is-available
       strengths:
-        - third-opinion-when-analysis-and-adjudication-disagree
+        - default-outcome-and-planning-ownership
         - cross-boundary-design-and-state-freeze
       avoid:
-        - default-binding-while-the-cn-portfolio-is-active
+        - routine-bounded-execution
       handoffContract: returns-decisions-and-evidence-to-the-current-owner
     gpt-6-astra:
       admission: standby-third-opinion
@@ -285,19 +301,19 @@ activePortfolio:
         - independent-visual-and-frontend-architecture-challenge
         - high-risk-independent-review
       avoid:
-        - default-binding-while-the-cn-portfolio-is-active
+        - routine-bounded-execution
       handoffContract: returns-findings-and-evidence-to-the-current-owner
   routingRules:
     - one-outcome-has-one-owner
-    - short-work-starts-on-k3-256k-and-promotes-to-1M-only-on-threshold
+    - short-work-starts-on-the-role-default-and-promotes-only-on-threshold
     - main-session-keeps-decisions-dispatch-and-receipts-only
     - ui-and-visual-acceptance-always-route-through-the-vision-tier
     - frozen-candidates-always-get-one-cross-vendor-finding-or-an-explicit-waiver
-    - planning-splits-adjudication-to-k3-and-review-planning-to-glm-5.3
+    - planning-splits-review-planning-to-k3-and-owner-planning-to-gpt-5.6-sol
     - batch-reads-and-commands-route-to-the-execution-tier
     - when-a-subscription-window-exceeds-70-percent-downgrade-and-disclose
     - window-downgrade-outranks-the-planning-ratio-and-must-be-disclosed
-    - an-exhausted-subscription-rebinds-the-owner-explicitly-because-no-same-tier-fallback-can-help
+    - an-exhausted-subscription-rebinds-the-affected-role-explicitly-because-no-same-tier-fallback-can-help
     - reserved-roles-are-explicitly-bound-and-never-default
     - subscribe-channel-and-pay-as-you-go-channel-never-bind-the-same-role
     - fallback-must-stay-inside-one-cost-tier-and-be-declared-in-ompAgentFallbacks

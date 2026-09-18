@@ -175,18 +175,11 @@ def check_routes(
             issues.append(f"catalog does not declare role: {role}")
             continue
         if role in RUNTIME_MANAGED_ROLES:
-            if not have or have != want:
-                # The harness actively manages this key (we've seen it rewrite it
-                # three times). Divergence here is a gap to verify, not a wrong
-                # binding.
-                issues.append(
-                    f"role {role}: runtime manages this key "
-                    f"(harness writes {have or '<missing>'}, catalog intends {want}); "
-                    "treat as a gap and verify the main session model in the UI"
-                )
-                # move to gaps instead of blocking
-                issues.pop()
-            continue
+            # The harness may omit this key, which is reported separately as a
+            # verification gap. If it is present, however, an explicit mismatch
+            # is real drift and must not be silently accepted.
+            if not have:
+                continue
         override = temporary.get(role) or {}
         declared_override, _ = split_selector(str(override.get("selector", "")))
         have_model, _ = split_selector(have)

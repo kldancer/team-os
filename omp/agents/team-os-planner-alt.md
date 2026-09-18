@@ -1,6 +1,6 @@
 ---
 name: team-os-planner-alt
-description: 用 GLM-5.3 承担评审型规划——覆盖型实施规划起草、接口与失败面矩阵、诊断第二假设；只在需要文本型深度规划时使用。
+description: 用 @plan_alt 承担评审型规划——覆盖型实施规划起草、接口与失败面矩阵、诊断第二假设；只在需要文本型深度规划时使用。具体模型由当前 Profile 的角色映射决定。
 model: ["@plan_alt", "zhipu-coding-plan/glm-5.3"]
 tools: [read, grep, glob, lsp, web_search]
 thinking-level: high
