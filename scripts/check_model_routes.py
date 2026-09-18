@@ -21,8 +21,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "models" / "catalog.yaml"
 AGENTS_DIR = ROOT / "omp" / "agents"
-ROLES = ("default", "plan_owner", "plan_alt", "ui_deep", "deep_review", "fast_worker", "fast_alt")
-RESERVED_ROLES = ("plan_owner", "plan_alt", "ui_deep", "deep_review", "fast_alt")
+ROLES = (
+    "default",
+    "plan_owner",
+    "plan_alt",
+    "ui_deep",
+    "ui_qa",
+    "deep_review",
+    "fast_worker",
+    "ui_impl",
+    "fast_alt",
+)
+RESERVED_ROLES = ("plan_owner", "plan_alt", "ui_deep", "ui_qa", "deep_review", "fast_alt")
 PEAK_HOURS = (9, 10, 11, 14, 15, 16, 17)
 
 
@@ -298,6 +308,23 @@ def check_temporary_bindings(
     return issues
 
 
+def model_tiers(catalog: dict) -> dict[str, list[str]]:
+    """Model-family prefixes per tier, derived from the role bindings.
+
+    Tiers belong to roles, not model families; the usage buckets still classify
+    by model id, so derive prefixes from the resolved selectors.
+    """
+    portfolio = portfolio_of(catalog)
+    role_tiers = portfolio.get("roleTiers") or {}
+    buckets: dict[str, list[str]] = {}
+    for role, selector in (portfolio.get("ompResolvedSelectors") or {}).items():
+        tier = role_tiers.get(str(role))
+        model = split_selector(str(selector))[0]
+        if tier and "/" in model:
+            buckets.setdefault(str(tier), []).append(model.split("/", 1)[1])
+    return buckets
+
+
 def check_role_billing(configured: dict[str, str], billing: dict[str, str]) -> list[str]:
     issues: list[str] = []
     for role, provider in sorted(role_providers(configured).items()):
@@ -346,9 +373,16 @@ def check_chains(
     declared: dict[str, list[str]],
     billing: dict[str, str],
     aliases: dict[str, str],
+    overflow_allow: set[str] | None = None,
 ) -> list[str]:
-    """Each projected agent must carry exactly its declared chain, inside one cost tier."""
+    """Each projected agent must carry exactly its declared chain, inside one cost tier.
+
+    The execution-tier worker pool is the one sanctioned exception: subscription
+    first (plentiful quota) with pay-as-you-go overflow, declared in the catalog
+    via ompChainOverflowAllow.
+    """
     issues: list[str] = []
+    overflow_allow = overflow_allow or set()
     declared_aliases_in_chains = set(aliases)
     for name in sorted(set(chains) | set(declared)):
         chain = chains.get(name)
@@ -372,7 +406,7 @@ def check_chains(
                 issues.append(
                     f"agent {name} uses provider {provider or '<unresolved>'} outside ompProviderBilling"
                 )
-        if len(kinds) > 1:
+        if len(kinds) > 1 and name not in overflow_allow:
             issues.append(
                 f"agent {name} mixes billing classes {sorted(kinds)}: a fallback chain stays inside one cost tier"
             )
@@ -654,10 +688,18 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int, quota_db
     task_overrides = configured_task_overrides(config)
     portfolio_quota = portfolio_of(catalog).get("quotaWindows") or {}
     quota_path = quota_db or target / "agent.db"
-    usage = usage_report(stats_db, days, portfolio_of(catalog).get("tiers") or {}, quota_path, portfolio_quota)
+    usage = usage_report(stats_db, days, model_tiers(catalog), quota_path, portfolio_quota)
     issues = check_routes(expected, configured, temporary)
     issues.extend(check_role_billing(configured, billing))
-    issues.extend(check_chains(chains, declared_chains(catalog), billing, alias_providers(configured)))
+    issues.extend(
+        check_chains(
+            chains,
+            declared_chains(catalog),
+            billing,
+            alias_providers(configured),
+            {str(item) for item in (portfolio_of(catalog).get("ompChainOverflowAllow") or [])},
+        )
+    )
     issues.extend(
         check_task_overrides(expected_task_overrides(catalog), task_overrides, aliases, configured)
     )

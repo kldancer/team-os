@@ -1,7 +1,7 @@
 ---
 name: team-os-fast-scout
 description: 用 DeepSeek V4.1 Flash 产出有界压缩证据包，替代分析档角色的原始探索；保持只读。
-model: ["@fast_worker", "deepseek/deepseek-flash"]
+model: ["@fast_worker", "teamorouter/glm-5.3-flash-free", "teamorouter/deepseek-flash"]
 tools: [read, grep, glob, lsp, browser, web_search]
 thinking-level: high
 ---

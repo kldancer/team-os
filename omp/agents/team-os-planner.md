@@ -1,7 +1,7 @@
 ---
 name: team-os-planner
 description: 用 Kimi K3 做裁决型规划——跨仓合同、状态冻结、方案取舍裁决与依赖 DAG；评审型规划草案交 team-os-planner-alt。
-model: ["@plan_owner", "zhipu-coding-plan/glm-5"]
+model: ["@plan_owner", "cliproxyapi/gpt-5.6-sol"]
 tools: [read, grep, glob, lsp, browser, web_search]
 thinking-level: high
 ---

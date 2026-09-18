@@ -136,15 +136,14 @@ def dispatch_policy(catalog: dict) -> dict:
 
 
 def tier_map(catalog: dict) -> tuple[dict[str, str], dict[str, str]]:
-    """agent name -> tier, plus generic task/scout/sonic -> tier."""
+    """agent name -> tier, plus generic task/scout/sonic -> tier.
+
+    Tiers belong to roles, not model families (catalog roleTiers), so rebinding
+    a role to a different model never changes which tier a dispatch counts in —
+    that is what makes hot-swappable bindings measurable.
+    """
     portfolio = catalog.get("activePortfolio") or {}
-    alias_tier = portfolio.get("tiers") or {}
-    aliases = portfolio.get("ompRoleAliases") or {}
-    role_tier: dict[str, str] = {}
-    for alias, model in aliases.items():
-        for tier, prefixes in alias_tier.items():
-            if any(str(model).startswith(str(prefix)) for prefix in prefixes):
-                role_tier[str(alias)] = str(tier)
+    role_tier = {str(role): str(tier) for role, tier in (portfolio.get("roleTiers") or {}).items()}
     agents: dict[str, str] = {}
     for agent, chain in (portfolio.get("ompAgentFallbacks") or {}).items():
         head = str(chain[0]) if chain else ""

@@ -22,27 +22,35 @@ activePortfolio:
   id: cn-k3-glm-ds-v1
   scope: omp-interactive-software-work
   evidencePolicy: official-capability-plus-local-task-observation
-  tiers:
-    analysis: [kimi-]
-    adjudication: [glm-]
-    vision: [glm-5.3-flash]
-    execution: [deepseek-]
+  # 档位属于「角色」而不是「模型家族」：换绑不换档，热替换才成立。
+  roleTiers:
+    default: analysis
+    plan_owner: analysis
+    plan_alt: adjudication
+    deep_review: adjudication
+    ui_deep: vision
+    ui_qa: vision
+    fast_worker: execution
+    ui_impl: execution
+    fast_alt: execution
   defaults:
-    outcomeOwner: kimi-k3
-    planningOwner: kimi-k3
-    reviewPlanning: glm-5.3
-    visualAcceptance: glm-5.3-flash
-    finalSynthesis: kimi-k3
-    crossBoundaryDesign: kimi-k3
-    deepReview: glm-5.3
-    architectureChallenge: glm-5.3
-    uiDeepDesign: glm-5.3-flash
-    frontendDeepReview: glm-5.3-flash
-    generalImplementation: deepseek-flash
-    leafExecution: deepseek-flash
-    fastScout: deepseek-flash
-    boundedParallelImplementation: deepseek-flash
-    independentFamilyReview: deepseek-flash
+    outcomeOwner: zhipu-coding-plan/glm-5.3
+    planningOwner: zhipu-coding-plan/glm-5.3
+    reviewPlanning: kimi-code/k3-256k
+    visualAcceptance: kimi-code/k3
+    finalSynthesis: zhipu-coding-plan/glm-5.3
+    crossBoundaryDesign: zhipu-coding-plan/glm-5.3
+    deepReview: kimi-code/k3
+    architectureChallenge: cliproxyapi/gpt-6-astra
+    uiDeepDesign: kimi-code/k3
+    uiQa: zhipu-coding-plan/glm-5.3-flash
+    frontendDeepReview: kimi-code/k3
+    generalImplementation: zhipu-coding-plan/glm-5.3-flash
+    leafExecution: zhipu-coding-plan/glm-5.3-flash
+    fastScout: zhipu-coding-plan/glm-5.3-flash
+    boundedParallelImplementation: zhipu-coding-plan/glm-5.3-flash
+    frontendImplementation: teamorouter/deepseek-flash
+    independentFamilyReview: teamorouter/deepseek-flash
   reservedRoles:
     - outcomeOwner
     - planningOwner
@@ -57,55 +65,57 @@ activePortfolio:
     kimi-membership:
       channel: kimi-code
       sharedPool: true
-      windows: [5h, weekly]
-      publishedValues: unknown
+      windows: ["5h", "weekly"]
+      publishedValues: "unknown"
       warmAt: 0.7
       downgradeAt: 0.9
       onExhausted:
-        rebindOwner: zhipu-coding-plan/glm-5.3
-        crossVendorReview: cliproxyapi/gpt-6-astra
-        keepVisual: zhipu-coding-plan/glm-5.3-flash
-        keepExecution: teamorouter/deepseek-flash
-        disclose: owner-lands-on-the-adjudication-tier-so-independent-review-moves-to-the-standby-channel
+        # kimi 现承载 plan_alt(起草)/deep_review(红队)/ui_deep(设计判断)/fast_alt
+        rebindPlanAlt: zhipu-coding-plan/glm-5.3
+        rebindDeepReview: cliproxyapi/gpt-6-astra
+        rebindUiDeep: zhipu-coding-plan/glm-5.3
+        keepOwner: true
+        disclose: kimi-exhaustion-moves-review-to-standby-and-drafts-to-glm-owner-tier
         resumeWhen: window-resets-and-usage_history-reports-ok
-      note: 订阅额度池与网页/Agent/深度研究/幻灯片/文档/表格/Kimi Code/Kimi Work 共享；Kimi Code 另有 5 小时/周限额；未用额度按计费周期清零
-      source: https://www.kimi.com/help/membership/membership-overview
-    glm-coding-plan:
+      note: 订阅额度池与网页/Agent/深度研究/幻灯片/文档/表格/Kimi Code/Kimi Work 共享
+    zhipu-coding-plan:
       channel: zhipu-coding-plan
-      promptsPer5h: {lite: "~80", pro: "~400", max: "~1600"}
-      promptsPerWeekly: {lite: "~400", pro: "~2000", max: "~8000"}
-      peakWindow: "Mon-Fri 14:00-18:00 UTC+8"
-      weekendOffPeak: true
-      modelFactors:
-        glm-5.3: {offPeak: 1.0, peak: 3.0}
-        glm-5.3-flash: {offPeak: 0.4, peak: 1.2}
-      note: 积分制按 token 抵扣；额度耗尽须等下一个 5 小时周期，不会自动转按量；周末全天按非高峰抵扣
-      source: https://docs.bigmodel.cn/cn/coding-plan/notice/usage-revision
-    deepseek-api:
-      channel: teamorouter
-      windows: []
-      peakWindow: "Mon-Fri 09:00-12:00, 14:00-18:00 UTC+8"
-      offPeakMultiplier: 0.5
-      note: 无订阅、无窗口，按量计费；官方 deepseek 通道谷时为半价
-      source: https://api-docs.deepseek.com/quick_start/pricing
+      sharedPool: true
+      windows: ["5h", "weekly"]
+      publishedValues: "points"
+      warmAt: 0.7
+      downgradeAt: 0.9
+      onExhausted:
+        # zhipu 现承载 owner(default/plan_owner)/fast_worker/ui_qa
+        rebindOwner: kimi-code/k3-256k
+        rebindOwnerStandby: cliproxyapi/gpt-5.6-sol
+        rebindFastWorker: teamorouter/glm-5.3-flash-free
+        rebindUiQa: teamorouter/glm-5.3-flash
+        disclose: zhipu-exhaustion-swaps-owner-to-k3-and-workers-to-payg-pool
+        resumeWhen: window-resets-and-usage_history-reports-ok
+      note: 高峰 3 倍积分（GLM-5.3）/1.2 倍（Flash），非高峰 1 倍/0.4 倍；重活排非高峰
   ompTaskAgentModelOverrides:
     task: "@fast_worker"
     scout: "@fast_worker"
     sonic: "@fast_worker"
   ompRoleAliases:
-    plan_owner: kimi-k3
-    plan_alt: glm-5.3
-    deep_review: glm-5.3
-    ui_deep: glm-5.3-flash
-    fast_worker: deepseek-flash
-    fast_alt: kimi-for-coding-highspeed
+    plan_owner: zhipu-coding-plan/glm-5.3
+    plan_alt: kimi-code/k3-256k
+    deep_review: kimi-code/k3
+    ui_deep: kimi-code/k3
+    ui_qa: zhipu-coding-plan/glm-5.3-flash
+    fast_worker: zhipu-coding-plan/glm-5.3-flash
+    ui_impl: teamorouter/deepseek-flash
+    fast_alt: kimi-code/kimi-for-coding-highspeed
   ompResolvedSelectors:
-    default: kimi-code/k3-256k
-    plan_owner: kimi-code/k3-256k
-    plan_alt: zhipu-coding-plan/glm-5.3
-    deep_review: zhipu-coding-plan/glm-5.3
-    ui_deep: zhipu-coding-plan/glm-5.3-flash
-    fast_worker: teamorouter/deepseek-flash
+    default: zhipu-coding-plan/glm-5.3
+    plan_owner: zhipu-coding-plan/glm-5.3
+    plan_alt: kimi-code/k3-256k
+    deep_review: kimi-code/k3
+    ui_deep: kimi-code/k3
+    ui_qa: zhipu-coding-plan/glm-5.3-flash
+    fast_worker: zhipu-coding-plan/glm-5.3-flash
+    ui_impl: teamorouter/deepseek-flash
     fast_alt: kimi-code/kimi-for-coding-highspeed
   temporaryBindings: {}
   dispatchPolicy:
@@ -122,9 +132,12 @@ activePortfolio:
     note: 同一验收点连续失败到该轮数即停线回规划；两处脚本与文档都读这里，不各写一个字面量
   standbySelectors:
     plan_owner: cliproxyapi/gpt-5.6-sol
+    plan_alt: cliproxyapi/gpt-5.6-sol
     deep_review: cliproxyapi/gpt-6-astra
     ui_deep: cliproxyapi/gpt-6-astra
-    note: GPT 通道保留为第三意见与回退，不作为默认绑定
+    fast_worker: teamorouter/deepseek-flash
+    ui_impl: kimi-code/k3
+    note: 高级替代阶梯——订阅告急或 GPT 通道可用时按角色显式切换；findings 不得与 owner 同厂
   contextPromotion:
     enabled: true
     from: kimi-code/k3-256k
@@ -138,12 +151,18 @@ activePortfolio:
     teamorouter: pay-as-you-go
     deepseek: pay-as-you-go
   ompAgentFallbacks:
-    team-os-planner: ["@plan_owner", "zhipu-coding-plan/glm-5"]
-    team-os-planner-alt: ["@plan_alt", "zhipu-coding-plan/glm-5"]
-    team-os-deep-reviewer: ["@deep_review", "zhipu-coding-plan/glm-5"]
-    team-os-ui-designer: ["@ui_deep"]
-    team-os-fast-scout: ["@fast_worker", "deepseek/deepseek-flash"]
-    team-os-bounded-worker: ["@fast_worker", "deepseek/deepseek-flash"]
+    team-os-planner: ["@plan_owner", "cliproxyapi/gpt-5.6-sol"]
+    team-os-planner-alt: ["@plan_alt", "zhipu-coding-plan/glm-5.3"]
+    team-os-deep-reviewer: ["@deep_review", "cliproxyapi/gpt-6-astra"]
+    team-os-ui-designer: ["@ui_deep", "cliproxyapi/gpt-6-astra"]
+    team-os-fast-scout: ["@fast_worker", "teamorouter/glm-5.3-flash-free", "teamorouter/deepseek-flash"]
+    team-os-bounded-worker: ["@fast_worker", "teamorouter/glm-5.3-flash-free", "teamorouter/deepseek-flash"]
+    team-os-ui-implementer: ["@ui_impl", "teamorouter/glm-5.3-flash-free"]
+  # 执行档 worker 池按设计跨计费档：订阅(glm-5.3-flash，额度多)优先，
+  # 溢出到按量(免费变体→deepseek)。仅这两个 agent 允许，其余链仍须同档。
+  ompChainOverflowAllow:
+    - team-os-fast-scout
+    - team-os-bounded-worker
   providerRoutes:
     analysis: kimi-code-oauth-or-api-key
     adjudication: zhipu-coding-plan-api-key

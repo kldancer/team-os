@@ -1,7 +1,7 @@
 ---
 name: team-os-deep-reviewer
 description: 用 GLM-5.3 对已冻结的接口、架构或高风险设计做深入只读评审，优先输出可执行发现。
-model: ["@deep_review", "zhipu-coding-plan/glm-5"]
+model: ["@deep_review", "cliproxyapi/gpt-6-astra"]
 tools: [read, grep, glob, lsp, browser, computer]
 thinking-level: high
 ---

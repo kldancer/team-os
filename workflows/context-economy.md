@@ -62,14 +62,16 @@
 
 ### 4.1 强制路由表（不是建议，是检查项）
 
-| 工作类型 | 必须由谁做 | 可检查产出 |
-| --- | --- | --- |
-| 跨仓合同、状态冻结、最终裁决与综合 | 分析档 | 决策基线 |
-| 覆盖型规划草稿、接口/失败面矩阵、诊断第二假设 | **研判档 `@plan_alt`** | 草案 + 需裁决点清单 |
-| 冻结候选的异厂挑战与深度评审 | 研判档 `@deep_review`；**窗口耗尽或 owner 已落在研判档时，改由 standby 通道承担** | 至少 1 条 findings（研判档或 standby），或显式豁免记录 |
-| UI/前端/视觉验收 | 执行档抽 DOM/截图事实 → **视觉档判断** | 一条视觉结论 + 原始证据引用 |
-| 批量读取、命令执行、机械改动 | 执行档 | worker 收据 |
-| 只有分析档能做的判断（取舍、裁决、对外表述） | 分析档 | — |
+| 工作类型 | 必须由谁做 | 当前绑定（2026-09-18 数据驱动） | 可检查产出 |
+| --- | --- | --- | --- |
+| 跨仓合同、状态冻结、最终裁决与综合 | 分析档 | `plan_owner`/`default` = `zhipu-coding-plan/glm-5.3`（智能指数国产并列第一，1.3M 上下文） | 决策基线 |
+| 覆盖型规划草稿、接口/失败面矩阵 | **研判档 `@plan_alt`** | `kimi-code/k3-256k`（起草被包界定，薄额度够用） | 草案 + 需裁决点清单 |
+| 冻结候选的异厂挑战与深度评审 | 研判档 `@deep_review` | `kimi-code/k3`（与 GLM owner 异厂；standby `cliproxyapi/gpt-6-astra`） | 至少 1 条 findings 或显式豁免 |
+| UI 审美判断、设计合同与视觉基线 | 视觉档 `@ui_deep` | `kimi-code/k3`（Design Arena 前端总榜第一、UI 组件国产第一；低频高价值不吃额度） | 一条视觉结论 + 原始证据引用 |
+| 截图/DOM 像素级事实核对 | 视觉档 `@ui_qa` | `zhipu-coding-plan/glm-5.3-flash`（$0.09/M 输入） | 事实回执 |
+| 前端代码实现（有视觉基线依赖） | 执行档前端 lane `@ui_impl` | `teamorouter/deepseek-flash`（本仓三波实证、前端榜第 7、按量）→ `glm-5.3-flash-free` 兜底；**design-critical 包由 owner 显式重绑 `kimi-code/k3`**（standby 阶梯）后执行，收据披露 | 页面实现 + VERDICT |
+| 批量读取、命令执行、机械改动 | 执行档 `@fast_worker` | **池**：`glm-5.3-flash`（订阅优先）→ `teamorouter/glm-5.3-flash-free`（免费按量）→ `teamorouter/deepseek-flash`（按量） | worker 收据 |
+| 只有分析档能做的判断 | 分析档 | — | — |
 
 判定口径：findings 的产出方不得与被评审方同厂——owner 落到研判档（窗口耗尽代持）时，standby 通道（`cliproxyapi/gpt-6-astra`）的 findings 计入这一检查项，研判档的自评不计入。
 
@@ -91,7 +93,11 @@
 2. 任务收尾用 `python3 .agents/scripts/juspctl.py close --task <id> …`，它会先跑 `check_role_routing.py --task <id> --gate`：**blocking 违规（订阅档主会话直连生产、UI 未过视觉档）直接阻断 close**，必须整改或由负责人显式 `--skip-role-routing` 覆盖；advisory（自执行占比、上下文中位、规划配比、1M 晋升）只报告不阻断。
 3. 归因口径：`--task` 把统计限制在"提及该任务 id 的会话"，再收敛到首次提及到末次提及之间的调用，因此长会话里别的任务不会被算到本任务头上。
 
-回退链写在 agent 定义的 `model` 数组里，并登记在 `models/catalog.yaml` 的 `ompAgentFallbacks`：**同一条链只能落在同一计费档**（订阅或按量），跨档切换只能由负责人在派工前显式决定并披露。执行角色的写入仍由负责人复核真实 diff 与集成入口。
+回退链写在 agent 定义的 `model` 数组里，并登记在 `models/catalog.yaml` 的 `ompAgentFallbacks`：**同一条链只能落在同一计费档**（订阅或按量），跨档切换只能由负责人在派工前显式决定并披露。唯一豁免是执行档 worker 池（`ompChainOverflowAllow`）：订阅 `glm-5.3-flash` 优先，溢出到按量（免费变体 → deepseek），这是设计内的降级路径而非静默漂移。
+
+**前端 lane 与通用 lane 分流**：`route_work` 对含 UI 路径的任务派 `ui_impl`（DeepSeek 实现 + 视觉档基线前置），非 UI 任务仍派 `fast_worker`（GLM-Flash 池优先）。升级到 K3 是 owner 的显式重绑（`design-system`/共享视觉组件路径自动标记 design-critical），不是链内静默跳档。
+
+**热替换架构**：档位属于角色而非模型家族（`roleTiers`），换绑不换档、度量口径不变。替换入口有两层——①订阅告急：`quotaWindows` 的 `onExhausted` runbook 给出该通道全部角色的重绑目标（zhipu 耗尽 → owner 回摆 `k3-256k` 或 standby `gpt-5.6-sol`、worker 落按量池；kimi 耗尽 → 起草落 GLM、红队落 standby `gpt-6-astra`）；②高级替代：`standbySelectors` 登记 GPT 通道（`cliproxyapi`）按角色显式切换。所有替换经 `temporaryBindings` 登记、由 `check_model_routes` 的代持过期守卫自动催回滚。执行角色的写入仍由负责人复核真实 diff 与集成入口。
 
 ### 4.3 失败预算与停线（复盘结论，2026-09-17）
 
