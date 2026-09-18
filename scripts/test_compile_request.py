@@ -51,6 +51,24 @@ class CompileRequestTest(unittest.TestCase):
         self.assertTrue(payload["signals"]["destructive"])
         self.assertTrue(payload["confirmation"]["required"])
         self.assertGreaterEqual(len(payload["confirmation"]["reasons"]), 2)
+        self.assertTrue(payload["executionContract"]["requiresProjectPlan"])
+        self.assertTrue(payload["executionContract"]["requiresFreezeBeforeRemote"])
+        self.assertTrue(payload["executionContract"]["requiresRemotePreflight"])
+        self.assertTrue(payload["executionContract"]["requiresClose"])
+
+    def test_existing_conclusion_is_a_continuation_signal(self):
+        payload = compile_request("按现有修正结论完成修复和验证")
+        self.assertEqual(payload["intent"]["mode"], "implement")
+        self.assertTrue(payload["signals"]["continuation"])
+        self.assertTrue(payload["executionContract"]["resumeExistingTask"])
+
+    def test_production_login_and_real_call_require_real_entry_receipt(self):
+        payload = compile_request("生产刷新、使用账号登录，并产生生产调用实际进行验证")
+        self.assertTrue(payload["signals"]["remote"])
+        self.assertTrue(payload["signals"]["credentials"])
+        self.assertTrue(payload["signals"]["browser"])
+        self.assertTrue(payload["executionContract"]["requiresRealEntryReceipt"])
+        self.assertEqual(payload["routing"]["browser"], "select-by-evidence")
 
     def test_obvious_credential_values_are_redacted_from_contract(self):
         self.assertEqual(redact_text("use token=abc123 and Bearer xyz"), "use <redacted> and <redacted>")

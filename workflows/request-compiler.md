@@ -26,9 +26,11 @@
 2. 判断意图：`diagnose`、`design`、`deliver-change`、`guard` 或恢复原任务。
 3. 生成最小合同：用户可验证结果、默认非目标、权威来源、最小读写集合、适用验收、失败预算和停止条件。
 4. 默认 `@plan_owner`、`solo` 和最短可验证路径；只有独有证据、互斥写集合或高风险独立验证成立时才增加角色或 worker。
-5. UI 按影响层级选择 `@ui_deep`、`@ui_impl`、`@ui_qa`；真实浏览器按证据选择 Playwright CLI、OMP Browser Eval 或 DevTools，不默认启动完整链路。
-6. 只有产品选择、生产/远端写、删除、凭据、外部发送或验收冲突需要用户明确确认；普通缺省项由 Owner 采用最保守默认并在结果中披露。
-7. 实施、验证和收尾后返回实际变更、证据、未验项、风险和下一步，不要求用户回填内部字段。
+5. UI 按影响层级选择 `@ui_deep`、`@ui_impl`、`@ui_qa`；真实浏览器按证据选择 Playwright CLI、OMP Browser Eval 或 DevTools，不默认启动完整链路。出现“登录/账号登录/真实调用/生产调用”等真实入口语义时，自动要求入口证据，不再把它当成普通接口验证。
+6. 实施、验证、生产或远端信号必须生成项目机器计划；Team OS 编译器只提供草案，不能替代项目 `juspctl plan` 或同等入口。
+7. 生产/远端写在机器计划、冻结收据和 `remote-preflight` 之前一律停止；不得直接调用底层 refresh/deploy 脚本绕过项目控制器。
+8. 只有产品选择、生产/远端写、删除、凭据、外部发送或验收冲突需要用户明确确认；普通缺省项由 Owner 采用最保守默认并在结果中披露。
+9. 实施、验证和收尾后返回实际变更、证据、未验项、风险和下一步，不要求用户回填内部字段。
 
 ## 默认安全边界
 
@@ -52,4 +54,4 @@ python3 scripts/compile_request.py \
   --out /path/to/project/.work/request-compile.json
 ```
 
-该收据只保存编译结果和脱敏摘要，不保存密钥、Cookie、真实 Session ID 或完整 Transcript。
+编译结果中的 `executionContract` 只描述后续控制条件：是否需要项目机器计划、冻结、远端 preflight、真实入口收据和 close；它不授予权限。该收据只保存编译结果和脱敏摘要，不保存密钥、Cookie、真实 Session ID 或完整 Transcript。

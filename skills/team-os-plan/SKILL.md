@@ -53,6 +53,8 @@ Goal 只在用户明确要求时创建，并且一个 outcome 只对应一个 du
 
 读取当前目录的项目指令。若项目提供 `design`、`deliver-change`、`diagnose`、`review`、`ship-changes` 或机器 planner，只选一个流程所有者并把结果合同交给它；本 Skill 不建立第二套任务数据库、不替代项目 Gate、不扩大授权。项目机器任务支持稳定 task ID 时，重规划沿用同一 task ID，不把 Plan、重试或波次升级为新结果。
 
+自然语言编译完成后，Owner 必须把 `executionContract` 落到项目机器入口：实现/验证/恢复请求调用项目 planner，生产或远端请求在冻结收据和 `remote-preflight` 通过前不得调用底层 refresh/deploy 脚本；“按现有/以上结论”优先恢复已有 taskId，而不是只依赖当前 Transcript。底层执行器只能消费已签名计划和对应 stage，不能成为计划的替代入口。
+
 ## 完成
 
 只有 outcome、适用验证、必要运行事实和已知风险披露闭合才完成。动态收据写项目指定 `.work`；长期合同只进入项目或 Team OS 的唯一权威位置。若项目提供机器任务关闭入口，把已知的首次判别事实耗时、返工、用户纠偏和交接次数写回原任务；模型 token、上下文体积与重复读取用项目统计入口汇总，缺失值记 null，不猜零。

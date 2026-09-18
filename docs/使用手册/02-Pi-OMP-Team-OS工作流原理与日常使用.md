@@ -256,6 +256,8 @@ flowchart LR
 
 日常不需要填写结果合同。你只说实际想解决、实现或验证的事情，当前 Owner 会读取项目事实并自动补齐意图、范围、角色、验证和停止条件；默认 `@plan_owner`、`solo` 和最短可验证路径。只有产品选择、生产/远端写、删除、凭据或事实冲突才会停下来询问。
 
+当需求包含实现、验证、恢复原任务或生产/远端动作时，Owner 会把编译结果落到项目机器计划；生产刷新还必须先有冻结收据和 `remote-preflight`。用户不需要输入这些内部字段，但底层 refresh/deploy 不能绕过项目计划直接写入。
+
 完整编译规则见 [`自然语言需求编译工作流`](../../workflows/request-compiler.md)。以下话术只是最短入口，不是必须逐字复制的模板。
 
 ### 7.1 日常主入口：直接说需求
@@ -288,6 +290,8 @@ flowchart LR
 继续上次任务：<补充要求>
 ```
 
+“按现有/以上结论完成修复”会优先尝试恢复已有 `taskId` 和 outcome；找不到可恢复任务时才创建新的结果，不把同一结果拆成多个顶层任务。
+
 没有模式词时，工厂根据动词、上下文和项目事实自动分类；用户不需要预先写 `outcome`、`nonGoals`、`authority`、`scope`、`acceptance` 或 `stopConditions`。
 
 ### 7.3 实施、UI 与验证：只描述目标，不手工编排角色
@@ -310,6 +314,14 @@ flowchart LR
 如需临时切换：将 <role> 角色变更为 <provider/model>，只作用于当前 Session，不修改持久 Profile。请确认能力匹配后通过 /model、--model 或 Agent Hub 应用，并回报旧模型、新模型、fallback、resolved model、作用域和恢复方式。
 如需持久变更：明确说明影响后续 Session/worker，修改 Profile 的 modelRoles，并运行 check_model_routes.py；模型不可用或需要静默跨 Provider 时停止，不自行换绑。
 ```
+
+当前已打开的旧 Session 不会因文件更新自动重写已经形成的上下文。优先用同一 Profile 新建或恢复 Session，让 OMP 重新加载最新投影；必须留在当前 Session 时，先输入：
+
+```text
+加载最新工作流规范：重新读取当前 OMP Profile 的 AGENTS.md、RULES.md、命中的项目 AGENTS.md 和 Skill；确认当前 taskId、已生效模型与 resolved model。只做规则加载和状态确认，不创建新任务、不修改代码；完成后回报已加载文件、当前 task 状态和后续入口。
+```
+
+确认完成后，再直接输入第 7 章中的日常需求话术。`/compact` 只压缩上下文，不替代规则重载；若规则仍未生效，改用 `omp --profile team-os` 新 Session。
 
 ## 8. Session 和模型日常操作
 

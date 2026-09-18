@@ -25,11 +25,11 @@ from typing import Any
 MODES = ("auto", "diagnose", "design", "implement", "verify", "resume")
 
 UI_RE = re.compile(
-    r"ui|前端|页面|登录页|界面|视觉|截图|组件|样式|主题|交互|console|浏览器|playwright|figma|响应式",
+    r"ui|前端|页面|登录|界面|视觉|截图|组件|样式|主题|交互|console|浏览器|playwright|figma|响应式",
     re.IGNORECASE,
 )
 BROWSER_RE = re.compile(
-    r"浏览器|真实入口|playwright|console|network|devtools|截图|视觉|页面验收|登录态|登录页|登录入口",
+    r"浏览器|真实入口|真实调用|实际调用|生产调用|playwright|console|network|devtools|截图|视觉|页面验收|登录态|登录页|登录入口|账号登录|登录验证",
     re.IGNORECASE,
 )
 REMOTE_RE = re.compile(
@@ -41,7 +41,7 @@ DESTRUCTIVE_RE = re.compile(
     re.IGNORECASE,
 )
 CREDENTIAL_RE = re.compile(
-    r"密码|口令|token|密钥|凭据|cookie|登录账号|authorization|secret",
+    r"密码|口令|token|密钥|凭据|cookie|登录账号|账号登录|账号|账户|authorization|secret",
     re.IGNORECASE,
 )
 SECRET_VALUE_RE = re.compile(
@@ -52,6 +52,7 @@ DIAGNOSE_RE = re.compile(r"只分析|仅分析|排查|诊断|为什么|原因|�
 DESIGN_RE = re.compile(r"设计|规划|方案|架构|比较方案|评审方案", re.IGNORECASE)
 VERIFY_RE = re.compile(r"只验证|仅验证|验收|回归|冒烟|healthcheck|guard|smoke", re.IGNORECASE)
 RESUME_RE = re.compile(r"继续|恢复|上次|原任务|原 outcome|原结果", re.IGNORECASE)
+CONTINUATION_RE = re.compile(r"按(?:现有|当前|上述|以上)(?:修正)?(?:结论|计划|结果)|沿用(?:原|当前)(?:任务|结论|计划)", re.IGNORECASE)
 IMPLEMENT_RE = re.compile(
     r"按结论|开始推进|实现|修复|整改|改造|更新|补强|开发|落地|完成|改成|调整|优化|增加|补充|替换",
     re.IGNORECASE,
@@ -130,6 +131,7 @@ def compile_request(request: str, *, mode: str = "auto", project_root: str | Pat
     remote = _signal(REMOTE_RE, normalized)
     destructive = _signal(DESTRUCTIVE_RE, normalized)
     credentials = _signal(CREDENTIAL_RE, normalized)
+    continuation = _signal(CONTINUATION_RE, normalized) or resolved_mode == "resume"
     confirmation_required = remote or destructive or credentials
     safe_request = redact_text(normalized)
 
@@ -165,6 +167,7 @@ def compile_request(request: str, *, mode: str = "auto", project_root: str | Pat
             "remote": remote,
             "destructive": destructive,
             "credentials": credentials,
+            "continuation": continuation,
         },
         "defaults": {
             "ownerRole": "@plan_owner",
@@ -186,6 +189,17 @@ def compile_request(request: str, *, mode: str = "auto", project_root: str | Pat
             "roles": role_hints,
             "browser": "select-by-evidence" if browser else "project-gates-only",
             "collaboration": "solo-unless-independent-evidence-or-mutual-exclusive-write-set",
+        },
+        "executionContract": {
+            "requiresProjectPlan": resolved_mode in {"implement", "verify", "resume"}
+            or remote
+            or destructive,
+            "requiresFreezeBeforeRemote": remote,
+            "requiresRemotePreflight": remote,
+            "requiresRealEntryReceipt": browser,
+            "requiresClose": resolved_mode in {"implement", "verify", "resume"}
+            or remote,
+            "resumeExistingTask": continuation,
         },
         "confirmation": {
             "required": confirmation_required,
