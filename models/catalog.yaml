@@ -111,6 +111,14 @@ activePortfolio:
   dispatchPolicy:
     failureBudget: 2
     cadenceMinutes: 20
+    # 每条 advisory 必须能被翻译成下一次派工的执行约束；没有条款的 advisory 不允许存在。
+    advisoryInjections:
+      owner-wait-share-high: 每 20 分钟结构化回报一次进展；禁止轮询等待，等待期间推进证据或裁决
+      owner-execution-share-high: 批量读取、命令执行与机械改动一律派执行档；主线只做决策、派工与收据
+      context-median-high: 证据包限 ≤30 行且带 文件:行号；禁止整份读取；大输出先落盘再摘要
+      worker-cadence-missing: "每个验收点必须回传 VERDICT: <验收点> PASS|FAIL 并附证据引用"
+      stop-marker-recorded: 未产出重定界决策前不得重试或重建；回规划裁决改验收或改 owner
+      planning-not-half-to-adjudication: 覆盖型规划草稿交 @plan_alt 起草，分析档只做裁决
     note: 同一验收点连续失败到该轮数即停线回规划；两处脚本与文档都读这里，不各写一个字面量
   standbySelectors:
     plan_owner: cliproxyapi/gpt-5.6-sol

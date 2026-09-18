@@ -84,8 +84,13 @@ DEFAULT_PROD_HOSTS = ("119.6.186.139", "119.6.186.140", "10.10.60.184")
 # only used when the catalog cannot be read.
 FAILURE_BUDGET_FALLBACK = 2
 # Structured progress markers the dispatch pack requires from every worker.
-VERDICT_PATTERN = re.compile(r"VERDICT:\s*(\S+)\s+(PASS|FAIL)", re.IGNORECASE)
-STOP_PATTERN = re.compile(r"\bSTOP:", re.IGNORECASE)
+# Markers must be *emitted*, not quoted from the dispatch pack. The pack template
+# itself contains `VERDICT: <验收点> PASS|FAIL` and `STOP: <原因>`, so placeholders
+# and contract narration are excluded: a marker counts only when it carries a
+# concrete value.
+VERDICT_PATTERN = re.compile(r"VERDICT:\s*([^\s<|]+)\s+(PASS|FAIL)(?![|])", re.IGNORECASE)
+STOP_PATTERN = re.compile(r"\bSTOP:\s*(?!<)([^\s].{0,60})", re.IGNORECASE)
+CONTRACT_NARRATION = ("回传", "失败预算", "写集合", "包内")
 # Free-form failure signature: workers frequently quote the script's own failure
 # line. The same normalised failure text repeating across messages is the
 # observable form of "kept retrying the same acceptance point".
@@ -114,13 +119,19 @@ def read_yaml(path: Path) -> dict:
 
 
 def dispatch_policy(catalog: dict) -> dict:
-    """Failure budget and cadence from the catalog; single source of truth."""
+    """Failure budget, cadence and advisory injections from the catalog.
+
+    Single source of truth: the gate and the pack generator both read it, so a
+    verdict can be turned into the constraint that the next dispatch carries.
+    """
     policy = (catalog.get("activePortfolio") or {}).get("dispatchPolicy") or {}
     budget = policy.get("failureBudget")
     cadence = policy.get("cadenceMinutes")
+    injections = policy.get("advisoryInjections")
     return {
         "failureBudget": int(budget) if isinstance(budget, int) and budget > 0 else FAILURE_BUDGET_FALLBACK,
         "cadenceMinutes": int(cadence) if isinstance(cadence, int) and cadence > 0 else 30,
+        "advisoryInjections": dict(injections) if isinstance(injections, dict) else {},
     }
 
 
@@ -325,7 +336,8 @@ def scan_session(
     for line in raw:
         for point, outcome in VERDICT_PATTERN.findall(line):
             verdicts.append((str(point), outcome.upper(), ""))
-        stops += len(STOP_PATTERN.findall(line))
+        if not any(word in line for word in CONTRACT_NARRATION):
+            stops += len(STOP_PATTERN.findall(line))
         if is_lane:
             seen_here: set[str] = set()
             for raw_signature in FAIL_SIGNATURE_PATTERN.findall(line):
@@ -551,7 +563,23 @@ def build_report(
     }
 
 
-def gate_report(report: dict, ui_call_threshold: int = 10, budget: int | None = None) -> dict:
+def injections_for(advisory: list[dict], policy: dict) -> dict[str, str]:
+    """Map each fired advisory to the clause the next dispatch must carry.
+
+    An advisory with no clause cannot change the next run; the catalog decides
+    which ones are allowed to exist.
+    """
+    declared = policy.get("advisoryInjections") or {}
+    return {code: str(clause) for code, clause in declared.items()}
+
+
+def gate_report(
+    report: dict,
+    ui_call_threshold: int = 10,
+    budget: int | None = None,
+    policy: dict | None = None,
+    receipts_passed: bool | None = None,
+) -> dict:
     """Turn a report into a pass/fail compliance gate.
 
     Blocking violations must be fixed before a task closes:
@@ -561,6 +589,7 @@ def gate_report(report: dict, ui_call_threshold: int = 10, budget: int | None = 
     Advisory violations are reported without blocking: owner execution share,
     context median, planning split, 1M promotions.
     """
+    policy = policy or {"advisoryInjections": {}}
     if budget is None:
         budget = FAILURE_BUDGET_FALLBACK
     blocking: list[dict] = []
@@ -617,18 +646,26 @@ def gate_report(report: dict, ui_call_threshold: int = 10, budget: int | None = 
                 f"({detail}); stop the workers, record STOP, and take the decision back to planning",
             }
         )
+    # Evidence order: deterministic gate receipts outrank text-level signals.
+    # When every declared gate passed, repeated failure text in the transcript
+    # (test output, quoted logs) is history, not an open loop.
     repeated = report.get("repeatedFailures") or {}
     worst = {key: count for key, count in repeated.items() if count >= budget}
     if worst and not report.get("workerSuccessMarkerSeen"):
         detail = ", ".join(f"{key}×{count}" for key, count in sorted(worst.items(), key=lambda i: -i[1])[:3])
-        blocking.append(
-            {
-                "code": "failure-budget-exceeded",
-                "count": sum(worst.values()),
-                "detail": f"the same failure repeated at least {budget} times with no success marker "
-                f"({detail}); stop the workers, record STOP, and take the decision back to planning",
-            }
-        )
+        entry = {
+            "code": "failure-budget-exceeded",
+            "count": sum(worst.values()),
+            "detail": f"the same failure repeated at least {budget} times with no success marker "
+            f"({detail}); stop the workers, record STOP, and take the decision back to planning",
+        }
+        if receipts_passed is True:
+            entry["detail"] += (
+                " — suppressed to advisory because every declared gate has a passing receipt"
+            )
+            advisory.append(entry)
+        else:
+            blocking.append(entry)
     if report.get("stopMarkers"):
         advisory.append(
             {
@@ -687,10 +724,23 @@ def gate_report(report: dict, ui_call_threshold: int = 10, budget: int | None = 
                 "detail": f"{report['mainSession']['promotionsTo1M']} context promotion(s) to the 1M variant",
             }
         )
+    injections = injections_for(advisory, policy)
+    for item in advisory:
+        clause = injections.get(str(item.get("code")))
+        if clause:
+            item["injection"] = clause
     return {
         "pass": not blocking,
         "blocking": blocking,
         "advisory": advisory,
+        "injections": list(
+            {
+                str(item.get("code")): {"code": str(item.get("code")), "clause": clause}
+                for item in advisory
+                for clause in [injections.get(str(item.get("code")))]
+                if clause
+            }.values()
+        ),
         "metrics": {
             "ownerExecutionShare": report["tierSplit"]["ownerExecutionShare"],
             "contextMedian": report["mainSession"]["contextMedian"],
@@ -700,6 +750,28 @@ def gate_report(report: dict, ui_call_threshold: int = 10, budget: int | None = 
             "executionDelegatedShare": report["tierSplit"]["executionDelegatedShare"],
         },
     }
+
+
+def write_carry_forward(project_root: Path, task: str | None, result: dict) -> Path | None:
+    """Persist the injections so the next dispatch packs carry them.
+
+    This is the loop that turns a verdict into a change: close-time advisories
+    become execution constraints in the following round's packs, and disappear
+    automatically when they stop firing.
+    """
+    injections = result.get("injections") or []
+    target = project_root / ".work" / "dispatch" / "carry-forward.json"
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "generatedAt": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+            "task": task,
+            "injections": injections,
+        }
+        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        return None
+    return target
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -714,6 +786,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ui-call-threshold", type=int, default=10, help="main-tier UI calls tolerated without a vision dispatch")
     parser.add_argument("--prod-hosts", nargs="*", default=list(DEFAULT_PROD_HOSTS), help="production hosts to flag")
     parser.add_argument("--failure-budget", type=int, default=None, help="rounds an acceptance point may fail before the loop must stop (default: catalog dispatchPolicy.failureBudget)")
+    parser.add_argument("--project-root", type=Path, default=Path.cwd(), help="project root receiving .work/dispatch/carry-forward.json")
+    parser.add_argument("--receipts-passed", action="store_true", help="the task's declared gates all have passing receipts (deterministic layer done)")
+    parser.add_argument("--receipts-missing", action="store_true", help="the task's declared gates lack passing receipts")
     return parser.parse_args(argv)
 
 
@@ -726,13 +801,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"check-role-routing: {error}", file=sys.stderr)
         return 2
     if args.gate:
-        budget = args.failure_budget
-        if budget is None:
-            try:
-                budget = dispatch_policy(read_yaml(args.catalog))["failureBudget"]
-            except RoutingError:
-                budget = FAILURE_BUDGET_FALLBACK
-        result = gate_report(report, args.ui_call_threshold, budget)
+        try:
+            policy = dispatch_policy(read_yaml(args.catalog))
+        except RoutingError:
+            policy = {"failureBudget": FAILURE_BUDGET_FALLBACK, "advisoryInjections": {}}
+        budget = args.failure_budget if args.failure_budget is not None else policy["failureBudget"]
+        receipts_passed: bool | None = None
+        if args.receipts_passed:
+            receipts_passed = True
+        elif args.receipts_missing:
+            receipts_passed = False
+        result = gate_report(report, args.ui_call_threshold, budget, policy, receipts_passed)
+        written = write_carry_forward(args.project_root, report.get("taskFilter"), result)
+        if written is not None:
+            result["carryForward"] = str(written)
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result["pass"] else 1
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))

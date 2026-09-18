@@ -288,7 +288,9 @@ class RouteWorkTest(unittest.TestCase):
         tiers = [p["tier"] for p in packs]
         self.assertIn("execution", tiers)
         self.assertIn("vision", tiers)
-        self.assertEqual(packs[0]["agent"], "team-os-bounded-worker")
+        # the visual baseline is the predecessor node: it must render first
+        self.assertEqual(tiers, ["vision", "execution"])
+        self.assertEqual(packs[0]["agent"], "team-os-ui-designer")
 
     def test_implement_without_ui_paths_is_execution_only(self) -> None:
         packs = route_work.plan_dispatch("t2", "implement", "o", ["internal/api/h.go"], "/tmp/x", "", "")
@@ -426,7 +428,8 @@ class DispatchPolicySingleSourceTest(unittest.TestCase):
                 encoding="utf-8",
             )
             policy = route_work.dispatch_policy(catalog_path)
-            self.assertEqual(policy, {"failureBudget": 3, "cadenceMinutes": 7})
+            self.assertEqual(policy["failureBudget"], 3)
+            self.assertEqual(policy["cadenceMinutes"], 7)
             packs = route_work.plan_dispatch("t", "implement", "o", ["src/a.ts"], raw, "", "")
             route_work.render_packs(
                 packs, "t", "o", ["src/a.ts"], raw, "", "", policy["failureBudget"], policy["cadenceMinutes"]
@@ -451,6 +454,219 @@ class DispatchPolicySingleSourceTest(unittest.TestCase):
             self.assertTrue(packs[0]["pack"].startswith(str(out)))
             route_work.render_packs(packs, "t", "o", [], raw, "", "", 2, 20)
             self.assertTrue(Path(packs[0]["pack"]).is_file())
+
+
+class ConstraintAndEdgeTest(unittest.TestCase):
+    """Cross-task learning edge and explicit node edges."""
+
+    def _registry(self, raw: str) -> Path:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "constraints.json"
+        path.write_text(raw, encoding="utf-8")
+        return path
+
+    REGISTRY = json.dumps(
+        {
+            "version": 1,
+            "constraints": [
+                {
+                    "id": "C-A",
+                    "claim": "非 root 在 raw docker 拿不到 NPU",
+                    "status": "active",
+                    "scope": {"workspaces": ["workload"], "profiles": ["npu-arm64"], "keywords": ["npu"]},
+                },
+                {"id": "C-CLOSED", "claim": "已闭环的教训", "status": "retired", "scope": {}},
+                {"id": "C-GLOBAL", "claim": "全局约束", "status": "active", "scope": {}},
+                {
+                    "id": "C-WS",
+                    "claim": "仅按工作区限定",
+                    "status": "active",
+                    "scope": {"workspaces": ["workload"]},
+                },
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+    def test_load_skips_retired_constraints(self) -> None:
+        loaded = route_work.load_constraints(str(self._registry(self.REGISTRY)))
+        self.assertEqual([item["id"] for item in loaded], ["C-A", "C-GLOBAL", "C-WS"])
+
+    def test_scope_decides_by_condition_not_by_shared_workspace(self) -> None:
+        loaded = route_work.load_constraints(str(self._registry(self.REGISTRY)))
+        ids = lambda result: [item["id"] for item in result]
+        # C-A declares keywords: a shared workspace alone must not pull it in
+        self.assertEqual(ids(route_work.match_constraints(loaded, ["workload"], "普通任务")), ["C-GLOBAL", "C-WS"])
+        self.assertEqual(ids(route_work.match_constraints(loaded, ["admin-console"], "升级 NPU 探针")), ["C-A", "C-GLOBAL"])
+        self.assertEqual(ids(route_work.match_constraints(loaded, ["admin-console"], "改表格分组")), ["C-GLOBAL"])
+        # profiles are the sharp condition when declared
+        self.assertEqual(
+            ids(route_work.match_constraints(loaded, [], "普通任务", ["npu-arm64"])), ["C-A", "C-GLOBAL"]
+        )
+
+    def test_pack_carries_constraints_and_carry_forward(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            carry_path = Path(raw) / "carry-forward.json"
+            carry_path.write_text(
+                json.dumps({"injections": [{"code": "context-median-high", "clause": "证据包限 30 行"}]}),
+                encoding="utf-8",
+            )
+            carry = route_work.load_carry_forward(str(carry_path))
+            packs = route_work.plan_dispatch("t", "implement", "o", ["src/a.tsx"], raw, "", "")
+            route_work.render_packs(
+                packs,
+                "t",
+                "o",
+                ["src/a.tsx"],
+                raw,
+                "",
+                "",
+                2,
+                20,
+                [{"id": "C-A", "claim": "约束内容", "derivedFrom": "task-x"}],
+                carry,
+            )
+            text = Path(packs[0]["pack"]).read_text(encoding="utf-8")
+        self.assertIn("C-A", text)
+        self.assertIn("证据包限 30 行", text)
+
+    def test_edges_name_what_crosses(self) -> None:
+        packs = route_work.plan_dispatch("t", "implement", "o", ["src/a.tsx"], "/tmp", "", "")
+        stages = [pack["tier"] for pack in packs]
+        self.assertEqual(stages, ["vision", "execution"])
+        execution = packs[1]
+        self.assertEqual(execution["dependsOn"], ["vision"])
+        self.assertTrue(all(execution["crosses"]))
+        self.assertIn("视觉基线结论", execution["crosses"][0])
+        self.assertTrue(packs[0]["produces"])
+
+    def test_ops_puts_preflight_before_execution(self) -> None:
+        packs = route_work.plan_dispatch("t", "ops", "o", ["installer:scripts/deploy/x.sh"], "/tmp", "", "")
+        self.assertEqual([pack["tier"] for pack in packs], ["prod-env", "execution"])
+        self.assertEqual(packs[1]["dependsOn"], ["prod-env"])
+
+    def test_independent_types_have_no_edge(self) -> None:
+        packs = route_work.plan_dispatch("t", "implement", "o", ["src/a.ts"], "/tmp", "", "")
+        self.assertEqual(packs[0]["dependsOn"], [])
+
+
+class CarryForwardGateTest(unittest.TestCase):
+    def test_gate_emits_injections_and_writes_carry_forward(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            entries = [
+                {"type": "model_change", "timestamp": stamp(5), "model": "kimi-code/k3-256k", "role": "default"}
+            ]
+            entries.extend(message([("hub", {"op": "wait"})]) for _ in range(4))
+            entries.append(message([("read", {"path": "src/a.ts"})]))
+            write_session(root / "-repo" / "2026-01-01T00-00-00-000Z_a.jsonl", entries)
+            report = check_role_routing.build_report(root, None, 1, CATALOG)
+            policy = check_role_routing.dispatch_policy(check_role_routing.read_yaml(CATALOG))
+            result = check_role_routing.gate_report(report, policy=policy)
+            codes = [item["code"] for item in result["advisory"]]
+            self.assertIn("owner-wait-share-high", codes)
+            self.assertTrue(result["injections"])
+            written = check_role_routing.write_carry_forward(root, None, result)
+            self.assertIsNotNone(written)
+            payload = json.loads(Path(written).read_text(encoding="utf-8"))
+        self.assertTrue(payload["injections"])
+        self.assertIn("clause", payload["injections"][0])
+
+    def test_catalog_declares_a_clause_for_every_injected_advisory(self) -> None:
+        policy = check_role_routing.dispatch_policy(check_role_routing.read_yaml(CATALOG))
+        declared = policy["advisoryInjections"]
+        for code in (
+            "owner-wait-share-high",
+            "owner-execution-share-high",
+            "context-median-high",
+            "worker-cadence-missing",
+            "stop-marker-recorded",
+            "planning-not-half-to-adjudication",
+        ):
+            self.assertIn(code, declared, f"{code} has no injection clause")
+            self.assertTrue(str(declared[code]).strip())
+
+    def test_passing_receipts_suppress_the_failure_budget_to_advisory(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_session(
+                root / "-repo" / "2026-01-01T00-00-00-000Z_owner.jsonl",
+                [{"type": "model_change", "timestamp": stamp(5), "model": "kimi-code/k3-256k", "role": "default"}],
+            )
+            failures = [
+                {"type": "model_change", "timestamp": stamp(5), "model": "teamorouter/deepseek-flash", "role": "default"}
+            ]
+            for _ in range(2):
+                failures.append(
+                    {
+                        "type": "message",
+                        "timestamp": stamp(1),
+                        "message": {
+                            "role": "assistant",
+                            "usage": {},
+                            "content": [{"type": "text", "text": "FAIL: readyz 超时"}],
+                        },
+                    }
+                )
+            write_session(root / "-repo" / "2026-01-01T00-00-00-000Z_owner" / "RunLane.jsonl", failures)
+            report = check_role_routing.build_report(root, None, 1, CATALOG)
+        blocked = check_role_routing.gate_report(report, receipts_passed=False)
+        self.assertIn("failure-budget-exceeded", [v["code"] for v in blocked["blocking"]])
+        suppressed = check_role_routing.gate_report(report, receipts_passed=True)
+        self.assertNotIn("failure-budget-exceeded", [v["code"] for v in suppressed["blocking"]])
+        self.assertIn("failure-budget-exceeded", [v["code"] for v in suppressed["advisory"]])
+
+
+class SessionFactsTest(unittest.TestCase):
+    """The code node that replaces hand-written session forensics."""
+
+    def test_facts_count_turns_tokens_tools_and_hub_ops(self) -> None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "session_facts", Path(__file__).resolve().with_name("session_facts.py")
+        )
+        assert spec and spec.loader
+        session_facts = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = session_facts
+        spec.loader.exec_module(session_facts)
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            entries = [
+                {"type": "model_change", "timestamp": stamp(5), "model": "kimi-code/k3-256k", "role": "default"},
+                {
+                    "type": "message",
+                    "timestamp": stamp(4),
+                    "message": {
+                        "role": "assistant",
+                        "usage": {"input": 100, "cacheRead": 900, "output": 10},
+                        "content": [
+                            {"type": "toolCall", "name": "hub", "arguments": {"op": "wait"}},
+                            {"type": "toolCall", "name": "read", "arguments": {"path": "src/a.ts"}},
+                        ],
+                    },
+                },
+                {
+                    "type": "message",
+                    "timestamp": stamp(3),
+                    "message": {
+                        "role": "assistant",
+                        "usage": {"input": 50, "cacheRead": 50, "output": 5},
+                        "content": [{"type": "toolCall", "name": "task", "arguments": {"tasks": [{"agent": "scout"}]}}],
+                    },
+                },
+            ]
+            write_session(root / "-repo" / "2026-01-01T00-00-00-000Z_a.jsonl", entries)
+            files = session_facts.session_files(root, None)
+            facts = session_facts.scan(files[0], None)
+        self.assertEqual(facts["toolCalls"], 3)
+        self.assertEqual(facts["executionCalls"], 1)
+        self.assertEqual(facts["hubOps"], {"wait": 1})
+        self.assertEqual(facts["dispatches"], {"scout": 1})
+        self.assertEqual(sum(facts["inputTokens"].values()), 150)
+        self.assertEqual(sum(facts["cacheReadTokens"].values()), 950)
 
 
 if __name__ == "__main__":
