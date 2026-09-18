@@ -40,6 +40,10 @@ DEFAULT_CATALOG = Path(__file__).resolve().parents[1] / "models" / "catalog.yaml
 FAILURE_BUDGET_FALLBACK = 2
 CADENCE_MINUTES_FALLBACK = 20
 
+# design-critical: the subset where K3 (Design Arena #1) should implement
+# instead of the deepseek workhorse — design-system/shared visual components.
+DESIGN_CRITICAL_PATTERN = re.compile(r"design-system|QualityRail|StatusPill|styles\.css|theme|tokens", re.IGNORECASE)
+
 UI_FILE_PATTERN = re.compile(r"\.(tsx|css|vue|svelte)$|admin-console|/console/|\.png$|figma", re.IGNORECASE)
 REMOTE_PATTERN = re.compile(r"internal/(api|server|billing|runtime)|deploy|helm|chart|rollout|migration", re.IGNORECASE)
 
@@ -47,6 +51,7 @@ REMOTE_PATTERN = re.compile(r"internal/(api|server|billing|runtime)|deploy|helm|
 # "and then" chain, not a dependency.
 EDGES: dict[tuple[str, str], str] = {
     ("vision", "execution"): "视觉基线结论（组件语义、状态矩阵、样式合同）",
+    ("vision", "ui-impl"): "视觉基线结论与设计合同（组件语义、状态矩阵、样式合同）",
     ("adjudication-draft", "execution"): "接口与失败面矩阵（草案中已裁决的部分）",
     ("execution-scout", "execution"): "压缩证据包（文件:行号 + 关键原句）",
     ("execution-scout", "vision"): "压缩证据包（文件:行号 + 关键原句）",
@@ -55,6 +60,7 @@ EDGES: dict[tuple[str, str], str] = {
 }
 AGENT = {
     "execution": "team-os-bounded-worker",
+    "ui-impl": "team-os-ui-implementer",
     "execution-scout": "scout",
     "vision": "team-os-ui-designer",
     "adjudication-draft": "team-os-planner-alt",
@@ -159,7 +165,8 @@ def load_carry_forward(path: str | None) -> list[dict]:
 def classify(paths: list[str]) -> dict:
     ui = any(UI_FILE_PATTERN.search(p) for p in paths)
     remote = any(REMOTE_PATTERN.search(p) for p in paths)
-    return {"ui": ui, "remote": remote}
+    design_critical = any(DESIGN_CRITICAL_PATTERN.search(p) for p in paths)
+    return {"ui": ui, "remote": remote, "designCritical": design_critical}
 
 
 def pack_for(
@@ -175,6 +182,7 @@ def pack_for(
     constraints: list[dict] | None = None,
     carry: list[dict] | None = None,
     pack_meta: dict | None = None,
+    design_critical: bool = False,
 ) -> str:
     """Render a worker-pack markdown body for one tier."""
     write = write_set or (", ".join(paths) if paths else "<绝对路径或 glob>")
@@ -184,6 +192,12 @@ def pack_for(
     crosses_block = "\n".join(f"- {item}" for item in crossings) or "无（本包不依赖前置节点，可并行启动）"
     produces_block = "\n".join(f"- {item}" for item in produces) or "无（本包为末跳，产物由 owner 集成）"
     carry_block = "\n".join(f"- `{item.get('code')}`：{item['clause']}" for item in (carry or [])) or "无"
+    design_block = (
+        "本包为设计关键实现：派发前由 owner 把角色 `ui_impl` 显式重绑到 `kimi-code/k3`（standby 阶梯），"
+        "收据披露实际模型，包闭合后回滚；不升级则按默认 DeepSeek 执行。"
+        if design_critical
+        else "否——按默认 DeepSeek 执行；触发视觉验收失败预算时再议升级。"
+    )
     constraints_block = "\n".join(
         f"- `{item['id']}`：{item['claim']}（来源：{item.get('derivedFrom') or item.get('evidence') or 'n/a'}）"
         for item in (constraints or [])
@@ -195,6 +209,7 @@ def pack_for(
 - **前置输入（跨过什么）**：{crosses_block}
 - **下一跳产物**：{produces_block}
 - **本轮携带的执行约束**：{carry_block}
+- **design-critical**：{design_block}
 
 ## 1. 目标
 
@@ -276,14 +291,17 @@ def plan_dispatch(
 
     if task_type == "implement":
         if kind["ui"]:
-            # the visual baseline is a real predecessor: it crosses into execution
+            # the visual baseline is a real predecessor: it crosses into the
+            # frontend implementation lane (ui_impl), not the generic worker
             tiers.append(("vision", AGENT["vision"], "涉及 UI 文件，先出视觉基线再实现"))
-        tiers.append(("execution", AGENT["execution"], "实现与验证由执行档承担"))
+            tiers.append(("ui-impl", AGENT["ui-impl"], "前端实现由 ui_impl 承担（DeepSeek 按量）"))
+        else:
+            tiers.append(("execution", AGENT["execution"], "实现与验证由执行档承担"))
     elif task_type == "research":
         tiers.append(("execution-scout", AGENT["execution-scout"], "只读证据包由 scout 取回"))
     elif task_type == "ui":
         tiers.append(("vision", AGENT["vision"], "视觉/交互深度设计"))
-        tiers.append(("execution", AGENT["execution"], "视觉基线后的实现"))
+        tiers.append(("ui-impl", AGENT["ui-impl"], "视觉基线后的前端实现"))
     elif task_type == "plan":
         tiers.append(("adjudication-draft", AGENT["adjudication-draft"], "规划草稿对半交研判档起草"))
         tiers.append(("analysis", "plan_owner", "跨仓合同与取舍由分析档裁决（本会话）"))
@@ -331,7 +349,9 @@ def render_packs(
     cadence_minutes: int,
     constraints: list[dict] | None = None,
     carry: list[dict] | None = None,
+    design_critical: bool = False,
 ) -> None:
+    critical = design_critical
     for p in packs:
         Path(p["pack"]).parent.mkdir(parents=True, exist_ok=True)
         Path(p["pack"]).write_text(
@@ -348,6 +368,7 @@ def render_packs(
                 constraints,
                 carry,
                 p,
+                critical,
             ),
             encoding="utf-8",
         )
@@ -366,6 +387,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--constraints", default=None, help="cross-task constraint registry (JSON); injects applicable claims")
     parser.add_argument("--profiles", default="", help="comma-separated gate profiles the plan matched (constraint scope)")
     parser.add_argument("--carry-forward", default=None, help="advisories from the last gate run to carry into these packs")
+    parser.add_argument("--design-critical", action="store_true", help="mark the frontend lane design-critical (K3 escalation path)")
     parser.add_argument("--failure-budget", type=int, default=None, help="rounds an acceptance point may fail before the worker must stop (default: catalog dispatchPolicy)")
     parser.add_argument("--cadence-minutes", type=int, default=None, help="structured progress beat interval required from the worker (default: catalog dispatchPolicy)")
     args = parser.parse_args(argv)
@@ -397,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
         cadence,
         constraints,
         carry,
+        args.design_critical or classify(paths).get("designCritical", False),
     )
 
     print(f"task={args.task} type={args.type}")
@@ -413,6 +436,8 @@ def main(argv: list[str] | None = None) -> int:
         print("  注入跨任务约束: " + ", ".join(item["id"] for item in constraints))
     if carry:
         print("  携带上轮执行约束: " + ", ".join(str(item.get("code")) for item in carry))
+    if args.design_critical or classify(paths).get("designCritical", False):
+        print("  [design-critical] 前端 lane 走 K3 升级通道：派发前重绑 ui_impl → kimi-code/k3 并披露")
     print("\n派工顺序按上面的边执行；无边即并行。owner 只做裁决与收据。")
     return 0
 

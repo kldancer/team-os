@@ -38,6 +38,7 @@ OMP_AGENT_FILES = {
     "agents/team-os-deep-reviewer.md": ROOT / "omp/agents/team-os-deep-reviewer.md",
     "agents/team-os-fast-scout.md": ROOT / "omp/agents/team-os-fast-scout.md",
     "agents/team-os-bounded-worker.md": ROOT / "omp/agents/team-os-bounded-worker.md",
+    "agents/team-os-ui-implementer.md": ROOT / "omp/agents/team-os-ui-implementer.md",
 }
 
 

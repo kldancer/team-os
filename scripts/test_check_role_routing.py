@@ -286,11 +286,10 @@ class RouteWorkTest(unittest.TestCase):
     def test_implement_with_ui_paths_adds_vision_tier(self) -> None:
         packs = route_work.plan_dispatch("t1", "implement", "o", ["src/admin-console/Page.tsx"], "/tmp/x", "", "")
         tiers = [p["tier"] for p in packs]
-        self.assertIn("execution", tiers)
-        self.assertIn("vision", tiers)
-        # the visual baseline is the predecessor node: it must render first
-        self.assertEqual(tiers, ["vision", "execution"])
+        # the visual baseline precedes the frontend implementation lane
+        self.assertEqual(tiers, ["vision", "ui-impl"])
         self.assertEqual(packs[0]["agent"], "team-os-ui-designer")
+        self.assertEqual(packs[1]["agent"], "team-os-ui-implementer")
 
     def test_implement_without_ui_paths_is_execution_only(self) -> None:
         packs = route_work.plan_dispatch("t2", "implement", "o", ["internal/api/h.go"], "/tmp/x", "", "")
@@ -534,12 +533,35 @@ class ConstraintAndEdgeTest(unittest.TestCase):
     def test_edges_name_what_crosses(self) -> None:
         packs = route_work.plan_dispatch("t", "implement", "o", ["src/a.tsx"], "/tmp", "", "")
         stages = [pack["tier"] for pack in packs]
-        self.assertEqual(stages, ["vision", "execution"])
-        execution = packs[1]
-        self.assertEqual(execution["dependsOn"], ["vision"])
-        self.assertTrue(all(execution["crosses"]))
-        self.assertIn("视觉基线结论", execution["crosses"][0])
+        self.assertEqual(stages, ["vision", "ui-impl"])
+        implementation = packs[1]
+        self.assertEqual(implementation["dependsOn"], ["vision"])
+        self.assertTrue(all(implementation["crosses"]))
+        self.assertIn("视觉基线结论", implementation["crosses"][0])
         self.assertTrue(packs[0]["produces"])
+
+    def test_frontend_lane_separates_from_generic_execution(self) -> None:
+        ui = route_work.plan_dispatch("t", "implement", "o", ["src/a.tsx"], "/tmp", "", "")
+        backend = route_work.plan_dispatch("t", "implement", "o", ["svc/x.go"], "/tmp", "", "")
+        self.assertEqual([p["tier"] for p in ui], ["vision", "ui-impl"])
+        self.assertEqual([p["tier"] for p in backend], ["execution"])
+        self.assertEqual(backend[0]["agent"], "team-os-bounded-worker")
+
+    def test_design_critical_marks_the_k3_escalation_path(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            packs = route_work.plan_dispatch(
+                "t", "implement", "o", ["src/design-system/QualityRail.tsx"], raw, "", ""
+            )
+            route_work.render_packs(
+                packs, "t", "o", ["src/design-system/QualityRail.tsx"], raw, "", "", 2, 20,
+                None, None, True,
+            )
+            text = Path(packs[-1]["pack"]).read_text(encoding="utf-8")
+        self.assertIn("kimi-code/k3", text)
+        plain = route_work.classify(["src/domains/x.tsx"])
+        self.assertFalse(plain["designCritical"])
+        critical = route_work.classify(["src/design-system/styles.css"])
+        self.assertTrue(critical["designCritical"])
 
     def test_ops_puts_preflight_before_execution(self) -> None:
         packs = route_work.plan_dispatch("t", "ops", "o", ["installer:scripts/deploy/x.sh"], "/tmp", "", "")
