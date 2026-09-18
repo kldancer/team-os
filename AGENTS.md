@@ -34,8 +34,21 @@
 - 完整角色、工作流和研究文档不自动加载；只有任务命中时才由 Skill 读取必要片段。
 - 运行时 Session 保存短期对话连续性；可恢复结果、Goal 绑定和动态收据由项目机器状态持有，稳定角色职责与跨项目方法进入本仓库，项目事实留在项目仓库。
 - 只有经验证且预计复用的结论才进入长期文档。动态证据放在 `.work/` 或项目指定证据目录。
+## 4. Team OS 脚本与项目仓库边界
 
-## 4. Team OS 维护
+Team OS 仓库根目录是包含本文件的仓库根目录，脚本路径必须以该根目录为基准；项目仓库的当前工作目录不得用于推断 Team OS 脚本位置。机器执行时优先使用 OMP 注入的 `TEAM_OS_ROOT`；未注入时从 Team OS 仓库根目录执行，或传入绝对路径。
+
+Team OS 机器脚本的 canonical 调用形式：
+
+```bash
+python3 "$TEAM_OS_ROOT/scripts/check_model_routes.py"
+python3 "$TEAM_OS_ROOT/scripts/check_role_routing.py"
+python3 "$TEAM_OS_ROOT/scripts/route_work.py"
+```
+
+`scripts/check_model_routes.py`、`scripts/check_role_routing.py` 和 `scripts/route_work.py` 若未带 `TEAM_OS_ROOT` 或绝对路径，均不得在业务项目仓库中直接执行；`<project-root>/scripts/**` 只表示当前项目脚本。
+
+## 5. Team OS 维护
 
 - 新规则从真实工作中的重复摩擦和有效改进产生；用户明确晋升后进入通用合同，不要求先完成短期冻结对照实验。
 - 项目适配器只引用权威路径，不复制项目文档，不因登记而获得写权限。
