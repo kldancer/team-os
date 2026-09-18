@@ -101,7 +101,10 @@
 2. **结构化标记**是门禁的输入：worker 每轮必须回传 `VERDICT: <验收点> PASS|FAIL`（PASS 附证据引用），停线回传 `STOP:`。`check_role_routing.py --gate` 据此判定 `failure-budget-exceeded`（blocking），并把 `stop-marker-recorded`、长 worker 缺 `VERDICT` 的 `worker-cadence-missing` 作为 advisory。
 3. **等待不算推进**：owner 的 hub `wait` 占其调用 ≥35% 即报 `owner-wait-share-high`；等待期间应推进规划、证据或裁决，而不是轮询。
 4. **验收不得静默降级**：绕过核心验收（例：把"非 root"改成 root 开关）必须显式改 outcome/acceptance 并重出机器计划（新 `planId`），否则收尾的收据门禁会因计划未执行而拒绝关闭。
-5. **计划必须参与执行**：`juspctl close` 校验本任务适用的每一级 Gate 都有对应 `planId` 的通过收据；`juspctl health` 输出 `stalledTasks`（长时间停在 planned/ready 且零事件零收据）与 `unverifiedDeliveries`（任务未闭合却已提交实现），把"计划不参与执行"和"合同上线、验证留白"变成可报警事实。
+5. **学习边（跨任务）**：被接受的结果与已处置事件必须沉淀为**约束**并注入后续任务，而不是留在任务内的复盘文字里。约束事实源 = `.agents/config/constraints.json`（每条含 `id / claim / scope{workspaces,profiles,keywords} / evidence / derivedFrom / status`），`juspctl plan` 读取命中的约束并写入 `plan.appliedConstraints` 与 brief，`route_work.py --constraints` 把命中的约束注入每个派工包。事件（缺口登记）留在任务目录，约束跨任务存活；已退役的条目标 `retired` 不再注入。任务出现阻断时，`juspctl close` 要求任务目录存在缺口登记文件，或显式 `--no-new-gaps`——记录 h3-vdn-inheritance 首创的处置实践。
+6. **判定必须改变下一次运行**：每条 advisory 在 `catalog.dispatchPolicy.advisoryInjections` 里必须有一条可执行的注入条款；`--gate` 输出 `injections` 并写 `.work/dispatch/carry-forward.json`，`route_work.py` 自动把这些条款注入下一轮派工包（命中消失时自动清除）。没有条款、无法改变下一次运行的 advisory 不允许存在。
+7. **节点顺序与边**：有依赖的节点必须先渲染（视觉基线 → 实现、preflight → 运维实现、findings → 整改），且每条边必须能命名"跨过什么"；命名不出来的就是并列节点，不串行等待。`route_work.py` 打印边与跨过物，包内写明前置输入与下一跳产物。
+8. **计划必须参与执行**：`juspctl close` 校验本任务适用的每一级 Gate 都有对应 `planId` 的通过收据；`juspctl health` 输出 `stalledTasks`（长时间停在 planned/ready 且零事件零收据）与 `unverifiedDeliveries`（任务未闭合却已提交实现），把"计划不参与执行"和"合同上线、验证留白"变成可报警事实。
 
 模型不得静默改变负责人：绑定缺失、回退到非预期 Provider、跨档回退或实际模型与绑定不一致时，停止执行并披露。
 
