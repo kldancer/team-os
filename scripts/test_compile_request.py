@@ -25,7 +25,7 @@ class CompileRequestTest(unittest.TestCase):
         payload = compile_request("修复登录后概览页空白")
         self.assertEqual(payload["intent"]["mode"], "implement")
         self.assertEqual(payload["intent"]["flowOwner"], "deliver-change")
-        self.assertEqual(payload["defaults"]["ownerRole"], "@plan_owner")
+        self.assertEqual(payload["defaults"]["ownerRole"], "@owner")
         self.assertEqual(payload["defaults"]["topology"], "solo")
         self.assertFalse(payload["confirmation"]["required"])
 
@@ -42,7 +42,7 @@ class CompileRequestTest(unittest.TestCase):
         self.assertTrue(payload["signals"]["ui"])
         self.assertTrue(payload["signals"]["browser"])
         self.assertEqual(payload["routing"]["browser"], "select-by-evidence")
-        self.assertIn("按需 @ui_deep / @ui_impl / @ui_qa，不默认串行启用", payload["routing"]["roles"])
+        self.assertIn("UI 作为能力标签，必要时由 @worker 或 @reviewer 承担", payload["routing"]["roles"])
         self.assertTrue(any("真实入口" in item for item in payload["defaults"]["acceptance"]))
 
     def test_high_risk_signals_only_request_confirmation(self):

@@ -52,11 +52,11 @@ def message(tools: list[tuple[str, dict]], usage: dict | None = None, model: str
 class RoleRoutingTest(unittest.TestCase):
     def test_tier_map_reads_agents_and_generic_overrides(self) -> None:
         agents, generics = check_role_routing.tier_map(check_role_routing.read_yaml(CATALOG))
-        self.assertEqual(agents["team-os-planner"], "analysis")
-        self.assertEqual(agents["team-os-planner-alt"], "adjudication")
-        self.assertEqual(agents["team-os-ui-designer"], "vision")
-        self.assertEqual(agents["team-os-bounded-worker"], "execution")
-        self.assertEqual(generics["task"], "execution")
+        self.assertEqual(agents["team-os-owner"], "owner")
+        self.assertEqual(agents["team-os-reviewer"], "reviewer")
+        self.assertEqual(agents["team-os-worker"], "worker")
+        self.assertEqual(generics["task"], "worker")
+        self.assertEqual(generics["task"], "worker")
 
     def test_dispatch_tiers_execution_share_and_promotions(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -68,17 +68,15 @@ class RoleRoutingTest(unittest.TestCase):
                     {"type": "model_change", "timestamp": seconds, "model": "kimi-code/k3-256k", "role": "default"},
                     {"type": "model_change", "timestamp": seconds, "model": "kimi-code/k3", "role": "default"},
                     message([("read", {"path": "src/app/Shell.tsx"}), ("bash", {"command": "ls"})]),
-                    message([("task", {"tasks": [{"agent": "team-os-planner-alt", "task": "draft"}]})]),
+                    message([("task", {"tasks": [{"agent": "team-os-reviewer", "task": "draft"}]})]),
                     message([("task", {"tasks": [{"agent": "scout", "task": "facts"}, {"task": "no agent"}]})]),
                 ],
             )
             report = check_role_routing.build_report(root, None, 1, CATALOG)
         self.assertEqual(report["sessionCount"], 1)
-        self.assertEqual(report["dispatchTierTotals"]["adjudication"], 1)
-        self.assertEqual(report["dispatchTierTotals"]["execution"], 2)
-        self.assertEqual(report["planningSplit"]["adjudicationDispatches"], 1)
-        self.assertEqual(report["planningSplit"]["shareToAdjudication"], 1.0)
-        self.assertTrue(report["targets"]["planningHalfToAdjudication"])
+        self.assertEqual(report["dispatchTierTotals"]["reviewer"], 1)
+        self.assertEqual(report["dispatchTierTotals"]["worker"], 2)
+        self.assertIn("planningSplit", report)
         self.assertEqual(report["mainSession"]["promotionsTo1M"], 1)
         self.assertEqual(report["mainSession"]["uiCallsOnMainTier"], 1)
         self.assertEqual(report["mainSession"]["executionCalls"], 2)
@@ -138,8 +136,9 @@ class RoleRoutingTest(unittest.TestCase):
             report = check_role_routing.build_report(root, None, 1, CATALOG)
         self.assertEqual(len(report["prodCallsOnSubscriptionTier"]), 1)
         result = check_role_routing.gate_report(report)
-        self.assertFalse(result["pass"])
-        self.assertEqual(result["blocking"][0]["code"], "prod-command-on-subscription-tier")
+        self.assertTrue(result["pass"])
+        self.assertEqual(result["blocking"], [])
+        self.assertIn("prod-command-on-subscription-tier", [item["code"] for item in result["advisory"]])
 
     def test_gate_flags_ui_without_vision_tier(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -155,8 +154,8 @@ class RoleRoutingTest(unittest.TestCase):
             report = check_role_routing.build_report(root, None, 1, CATALOG)
         self.assertGreaterEqual(report["mainSession"]["uiCallsOnMainTier"], 12)
         result = check_role_routing.gate_report(report)
-        self.assertFalse(result["pass"])
-        codes = [v["code"] for v in result["blocking"]]
+        self.assertTrue(result["pass"])
+        codes = [v["code"] for v in result["advisory"]]
         self.assertIn("ui-work-without-vision-tier", codes)
 
     def test_gate_pass_when_clean(self) -> None:
@@ -287,9 +286,9 @@ class RouteWorkTest(unittest.TestCase):
         packs = route_work.plan_dispatch("t1", "implement", "o", ["src/admin-console/Page.tsx"], "/tmp/x", "", "")
         tiers = [p["tier"] for p in packs]
         # the visual baseline precedes the frontend implementation lane
-        self.assertEqual(tiers, ["vision", "ui-impl"])
-        self.assertEqual(packs[0]["agent"], "team-os-ui-designer")
-        self.assertEqual(packs[1]["agent"], "team-os-ui-implementer")
+        self.assertEqual(tiers, ["execution"])
+        self.assertEqual(packs[0]["agent"], "team-os-worker")
+        self.assertEqual(packs[0]["agent"], "team-os-worker")
 
     def test_implement_without_ui_paths_is_execution_only(self) -> None:
         packs = route_work.plan_dispatch("t2", "implement", "o", ["internal/api/h.go"], "/tmp/x", "", "")
@@ -297,17 +296,17 @@ class RouteWorkTest(unittest.TestCase):
 
     def test_research_routes_to_scout(self) -> None:
         packs = route_work.plan_dispatch("t3", "research", "o", [], "/tmp/x", "", "")
-        self.assertEqual(packs[0]["agent"], "scout")
+        self.assertEqual(packs[0]["agent"], "team-os-worker")
         self.assertEqual(packs[0]["tier"], "execution-scout")
 
     def test_plan_routes_to_planner_alt(self) -> None:
         packs = route_work.plan_dispatch("t4", "plan", "o", [], "/tmp/x", "", "")
-        self.assertEqual(packs[0]["agent"], "team-os-planner-alt")
-        self.assertEqual(packs[0]["tier"], "adjudication-draft")
+        self.assertEqual(packs[0]["agent"], "team-os-reviewer")
+        self.assertEqual(packs[0]["tier"], "judgement")
 
     def test_review_routes_to_deep_reviewer(self) -> None:
         packs = route_work.plan_dispatch("t5", "review", "o", [], "/tmp/x", "", "")
-        self.assertEqual(packs[0]["agent"], "team-os-deep-reviewer")
+        self.assertEqual(packs[0]["agent"], "team-os-reviewer")
 
     def test_render_writes_packs(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -533,19 +532,19 @@ class ConstraintAndEdgeTest(unittest.TestCase):
     def test_edges_name_what_crosses(self) -> None:
         packs = route_work.plan_dispatch("t", "implement", "o", ["src/a.tsx"], "/tmp", "", "")
         stages = [pack["tier"] for pack in packs]
-        self.assertEqual(stages, ["vision", "ui-impl"])
-        implementation = packs[1]
-        self.assertEqual(implementation["dependsOn"], ["vision"])
+        self.assertEqual(stages, ["execution"])
+        implementation = packs[0]
+        self.assertEqual(implementation["dependsOn"], [])
         self.assertTrue(all(implementation["crosses"]))
-        self.assertIn("视觉基线结论", implementation["crosses"][0])
-        self.assertTrue(packs[0]["produces"])
+        self.assertEqual(implementation["crosses"], [])
+        self.assertEqual(packs[0]["produces"], [])
 
     def test_frontend_lane_separates_from_generic_execution(self) -> None:
         ui = route_work.plan_dispatch("t", "implement", "o", ["src/a.tsx"], "/tmp", "", "")
         backend = route_work.plan_dispatch("t", "implement", "o", ["svc/x.go"], "/tmp", "", "")
-        self.assertEqual([p["tier"] for p in ui], ["vision", "ui-impl"])
+        self.assertEqual([p["tier"] for p in ui], ["execution"])
         self.assertEqual([p["tier"] for p in backend], ["execution"])
-        self.assertEqual(backend[0]["agent"], "team-os-bounded-worker")
+        self.assertEqual(backend[0]["agent"], "team-os-worker")
 
     def test_design_critical_marks_the_k3_escalation_path(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -557,16 +556,16 @@ class ConstraintAndEdgeTest(unittest.TestCase):
                 None, None, True,
             )
             text = Path(packs[-1]["pack"]).read_text(encoding="utf-8")
-        self.assertIn("kimi-code/k3", text)
+        self.assertNotIn("kimi-code/k3", text)
         plain = route_work.classify(["src/domains/x.tsx"])
         self.assertFalse(plain["designCritical"])
         critical = route_work.classify(["src/design-system/styles.css"])
         self.assertTrue(critical["designCritical"])
 
-    def test_ops_puts_preflight_before_execution(self) -> None:
+    def test_ops_uses_one_bounded_worker(self) -> None:
         packs = route_work.plan_dispatch("t", "ops", "o", ["installer:scripts/deploy/x.sh"], "/tmp", "", "")
-        self.assertEqual([pack["tier"] for pack in packs], ["prod-env", "execution"])
-        self.assertEqual(packs[1]["dependsOn"], ["prod-env"])
+        self.assertEqual([pack["tier"] for pack in packs], ["execution"])
+        self.assertEqual(packs[0]["dependsOn"], [])
 
     def test_independent_types_have_no_edge(self) -> None:
         packs = route_work.plan_dispatch("t", "implement", "o", ["src/a.ts"], "/tmp", "", "")
@@ -588,23 +587,19 @@ class CarryForwardGateTest(unittest.TestCase):
             result = check_role_routing.gate_report(report, policy=policy)
             codes = [item["code"] for item in result["advisory"]]
             self.assertIn("owner-wait-share-high", codes)
-            self.assertTrue(result["injections"])
+            self.assertFalse(result["injections"])
             written = check_role_routing.write_carry_forward(root, None, result)
             self.assertIsNotNone(written)
             payload = json.loads(Path(written).read_text(encoding="utf-8"))
-        self.assertTrue(payload["injections"])
-        self.assertIn("clause", payload["injections"][0])
+        self.assertFalse(payload["injections"])
 
     def test_catalog_declares_a_clause_for_every_injected_advisory(self) -> None:
         policy = check_role_routing.dispatch_policy(check_role_routing.read_yaml(CATALOG))
         declared = policy["advisoryInjections"]
         for code in (
-            "owner-wait-share-high",
-            "owner-execution-share-high",
-            "context-median-high",
-            "worker-cadence-missing",
-            "stop-marker-recorded",
-            "planning-not-half-to-adjudication",
+            "long-command-visible",
+            "worker-bounded",
+            "owner-default",
         ):
             self.assertIn(code, declared, f"{code} has no injection clause")
             self.assertTrue(str(declared[code]).strip())

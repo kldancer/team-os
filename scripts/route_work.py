@@ -7,15 +7,9 @@ the tier matrix from the task type and the touched paths, writes a
 self-contained dispatch pack per required tier (worker-pack format), and
 prints the dispatch list (tier / agent / pack path / why).
 
-Tier matrix:
-
-  implement -> execution (team-os-bounded-worker); if UI paths are touched,
-               also vision (team-os-ui-designer) for the visual baseline
-  research  -> execution scout evidence pack
-  ui        -> vision baseline + execution implementation
-  plan      -> adjudication draft (@plan_alt) + analysis adjudication
-  review    -> adjudication findings (team-os-deep-reviewer)
-  ops       -> execution worker + prod-env preflight reminder
+Default recommendation: `solo`. When the owner explicitly requests a pack,
+the script creates one `@worker` pack, or one `@reviewer` pack for a read-only
+challenge. UI and operations are capability labels in the pack.
 
 Usage:
 
@@ -59,12 +53,12 @@ EDGES: dict[tuple[str, str], str] = {
     ("judgement", "execution"): "findings（异厂挑战结论）",
 }
 AGENT = {
-    "execution": "team-os-bounded-worker",
-    "ui-impl": "team-os-ui-implementer",
-    "execution-scout": "scout",
-    "vision": "team-os-ui-designer",
-    "adjudication-draft": "team-os-planner-alt",
-    "judgement": "team-os-deep-reviewer",
+    "execution": "team-os-worker",
+    "execution-scout": "team-os-worker",
+    "vision": "team-os-worker",
+    "ui-impl": "team-os-worker",
+    "adjudication-draft": "team-os-reviewer",
+    "judgement": "team-os-reviewer",
 }
 
 
@@ -193,10 +187,9 @@ def pack_for(
     produces_block = "\n".join(f"- {item}" for item in produces) or "无（本包为末跳，产物由 owner 集成）"
     carry_block = "\n".join(f"- `{item.get('code')}`：{item['clause']}" for item in (carry or [])) or "无"
     design_block = (
-        "本包为设计关键实现：派发前由 owner 把角色 `ui_impl` 显式重绑到 `kimi-code/k3`（standby 阶梯），"
-        "收据披露实际模型，包闭合后回滚；不升级则按默认 DeepSeek 执行。"
+        "本包包含 UI 能力标签：owner 可按证据选择适用模型，收据披露实际模型。"
         if design_critical
-        else "否——按默认 DeepSeek 执行；触发视觉验收失败预算时再议升级。"
+        else "否——按默认 worker 模型执行。"
     )
     constraints_block = "\n".join(
         f"- `{item['id']}`：{item['claim']}（来源：{item.get('derivedFrom') or item.get('evidence') or 'n/a'}）"
@@ -290,28 +283,19 @@ def plan_dispatch(
     tiers: list[tuple[str, str, str]] = []  # (tier, agent, reason)
 
     if task_type == "implement":
-        if kind["ui"]:
-            # the visual baseline is a real predecessor: it crosses into the
-            # frontend implementation lane (ui_impl), not the generic worker
-            tiers.append(("vision", AGENT["vision"], "涉及 UI 文件，先出视觉基线再实现"))
-            tiers.append(("ui-impl", AGENT["ui-impl"], "前端实现由 ui_impl 承担（DeepSeek 按量）"))
-        else:
-            tiers.append(("execution", AGENT["execution"], "实现与验证由执行档承担"))
+        # A generated pack is an explicit opt-in. The default owner path stays
+        # solo; visual work is a capability note on the same bounded worker.
+        tiers.append(("execution", AGENT["execution"], "仅在 owner 明确派工时执行有界实现"))
     elif task_type == "research":
         tiers.append(("execution-scout", AGENT["execution-scout"], "只读证据包由 scout 取回"))
     elif task_type == "ui":
-        tiers.append(("vision", AGENT["vision"], "视觉/交互深度设计"))
-        tiers.append(("ui-impl", AGENT["ui-impl"], "视觉基线后的前端实现"))
+        tiers.append(("execution", AGENT["execution"], "UI 能力作为派工包标签，不创建固定视觉接力"))
     elif task_type == "plan":
-        tiers.append(("adjudication-draft", AGENT["adjudication-draft"], "规划草稿对半交研判档起草"))
-        tiers.append(("analysis", "plan_owner", "跨仓合同与取舍由分析档裁决（本会话）"))
+        tiers.append(("judgement", AGENT["judgement"], "只有明确要求第二意见时才派 reviewer"))
     elif task_type == "review":
-        tiers.append(("judgement", AGENT["judgement"], "冻结候选须一条异厂 findings 或显式豁免"))
-        tiers.append(("execution", AGENT["execution"], "按 findings 整改"))
+        tiers.append(("judgement", AGENT["judgement"], "高风险或明确要求时的只读挑战"))
     elif task_type == "ops":
-        if kind["remote"]:
-            tiers.append(("prod-env", "prod-env 执行器", "远端写/刷新先取得 preflight，再按已授权计划执行"))
-        tiers.append(("execution", AGENT["execution"], "运维变更由执行档实现"))
+        tiers.append(("execution", AGENT["execution"], "运维证据和操作由同一个有界 worker 负责"))
     else:  # pragma: no cover - argparse restricts values
         raise ValueError(f"unknown task type {task_type}")
 
@@ -437,8 +421,8 @@ def main(argv: list[str] | None = None) -> int:
     if carry:
         print("  携带上轮执行约束: " + ", ".join(str(item.get("code")) for item in carry))
     if args.design_critical or classify(paths).get("designCritical", False):
-        print("  [design-critical] 前端 lane 走 K3 升级通道：派发前重绑 ui_impl → kimi-code/k3 并披露")
-    print("\n派工顺序按上面的边执行；无边即并行。owner 只做裁决与收据。")
+        print("  [capability] design-critical：owner 选择适用模型并在收据中披露")
+    print("\n派工包仅在 owner 明确委派时使用；owner 持有最终结果。")
     return 0
 
 

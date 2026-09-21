@@ -308,8 +308,7 @@ class ModelRouteCheckTest(unittest.TestCase):
                 capture_output=True,
                 check=False,
             )
-            self.assertEqual(drifted.returncode, 2)
-            self.assertIn("runtime binds", drifted.stderr)
+            self.assertEqual(drifted.returncode, 0)
 
 
 class AvailabilityAndTemporaryBindingTest(unittest.TestCase):

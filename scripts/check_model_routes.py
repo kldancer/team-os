@@ -22,15 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "models" / "catalog.yaml"
 AGENTS_DIR = ROOT / "omp" / "agents"
 ROLES = (
-    "default",
-    "plan_owner",
-    "plan_alt",
-    "ui_deep",
-    "ui_qa",
-    "deep_review",
-    "fast_worker",
-    "ui_impl",
-    "fast_alt",
+    # Legacy names remain parseable for old reports and tests; they are not
+    # projected into the current OMP profile.
+    "default", "plan_owner", "plan_alt", "ui_deep", "ui_qa", "deep_review", "fast_worker", "ui_impl", "fast_alt",
+    "owner",
+    "worker",
+    "reviewer",
 )
 RESERVED_ROLES = ("plan_owner", "plan_alt", "ui_deep", "ui_qa", "deep_review", "fast_alt")
 PEAK_HOURS = (9, 10, 11, 14, 15, 16, 17)
@@ -70,7 +67,7 @@ def mapping_key(portfolio: dict, key: str) -> dict:
 
 def expected_routes(catalog: dict) -> dict[str, str]:
     selectors = mapping_key(portfolio_of(catalog), "ompResolvedSelectors")
-    return {role: str(selectors.get(role, "")) for role in ROLES}
+    return {str(role): str(selector) for role, selector in selectors.items() if selector}
 
 
 def declared_aliases(catalog: dict) -> set[str]:
@@ -82,7 +79,7 @@ def configured_routes(config: dict) -> dict[str, str]:
     roles = config.get("modelRoles")
     if not isinstance(roles, dict):
         raise RouteError("runtime config is missing modelRoles")
-    return {role: str(roles.get(role, "")) for role in ROLES}
+    return {str(role): str(selector) for role, selector in roles.items() if selector}
 
 
 def agent_chains(agents_dir: Path) -> dict[str, list[str]]:
@@ -146,11 +143,11 @@ def temporary_bindings(catalog: dict) -> dict[str, dict]:
     return {str(role): dict(entry or {}) for role, entry in declared.items()}
 
 
-RUNTIME_MANAGED_ROLES = ("default",)
+RUNTIME_MANAGED_ROLES: tuple[str, ...] = ()
 
 
 def missing_role_gaps(configured: dict[str, str]) -> list[str]:
-    """The runtime rewrites modelRoles and drops `default` (observed twice).
+    """Report missing bindings without treating harness-managed defaults as gaps.
 
     An absent, runtime-managed key is a gap to verify by hand, not a wrong
     binding; a present-but-different value is still an issue.
@@ -168,11 +165,12 @@ def check_routes(
 ) -> list[str]:
     issues: list[str] = []
     temporary = temporary or {}
-    for role in ROLES:
+    for role in sorted(set(expected) | set(configured)):
         want = expected.get(role, "")
         have = configured.get(role, "")
         if not want:
-            issues.append(f"catalog does not declare role: {role}")
+            if have and role != "default":
+                issues.append(f"role {role}: runtime binds {have}, catalog declares no active role")
             continue
         if role in RUNTIME_MANAGED_ROLES:
             # The harness may omit this key, which is reported separately as a
@@ -329,9 +327,11 @@ def model_tiers(catalog: dict) -> dict[str, list[str]]:
     return buckets
 
 
-def check_role_billing(configured: dict[str, str], billing: dict[str, str]) -> list[str]:
+def check_role_billing(configured: dict[str, str], billing: dict[str, str], active: set[str] | None = None) -> list[str]:
     issues: list[str] = []
     for role, provider in sorted(role_providers(configured).items()):
+        if active is not None and role not in active:
+            continue
         if provider not in billing:
             issues.append(f"role {role} binds provider {provider} outside ompProviderBilling")
     return issues
@@ -694,7 +694,7 @@ def collect(profile: str, home: Path | None, stats_db: Path, days: int, quota_db
     quota_path = quota_db or target / "agent.db"
     usage = usage_report(stats_db, days, model_tiers(catalog), quota_path, portfolio_quota)
     issues = check_routes(expected, configured, temporary)
-    issues.extend(check_role_billing(configured, billing))
+    issues.extend(check_role_billing(configured, billing, set(expected)))
     issues.extend(
         check_chains(
             chains,

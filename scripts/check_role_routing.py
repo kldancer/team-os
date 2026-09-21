@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Measure whether the runtime actually routes work to the intended tier.
+"""Measure whether the runtime uses optional worker/reviewer assistance effectively.
 
 `check_model_routes.py` proves the bindings resolve; this script proves the
-workflow *uses* them. It reads session transcripts only, and answers the four
-routing questions that the catalog's routing rules assert:
+workflow uses them. It reads session transcripts only, and answers optional
+diagnostic questions; it never grants permission or blocks task close:
 
-1. planning split — dispatches to the analysis tier versus the adjudication tier;
-2. vision tier — dispatches to the vision-tier agent and UI work done elsewhere;
-3. cross-vendor review — dispatches to the judgement tier;
+1. optional assistance — which owner/worker/reviewer paths were used;
+2. capability tags — UI and remote work observations;
+3. independent review — whether a reviewer was used when explicitly requested;
 4. main-session thinning — how much execution work the main session still does
    itself, plus how often a context promotion to the 1M variant happened.
 
@@ -23,10 +23,8 @@ Since 2026-09-17 the script also:
   helm, rsync) issued from the subscription-tier main session;
 - `--task <id>` scopes every metric to the sessions that mention that task, so
   closing one task is never blocked by another task's sessions;
-- `--gate` turns the metrics into a pass/fail compliance gate: blocking
-  violations (subscription-tier production access, UI work without a vision
-  dispatch) must be fixed before a task closes; advisory violations are
-  reported without blocking.
+- `--gate` is retained as a report format for compatibility. It does not block
+  task close; project plans and production executors own authorization and safety.
 
 Nothing is guessed: missing sessions or an unreadable catalog are reported as
 explicit gaps, and every metric carries the sample size behind it.
@@ -43,8 +41,7 @@ from pathlib import Path
 
 CATALOG = Path(__file__).resolve().parents[1] / "models" / "catalog.yaml"
 EXECUTION_TOOLS = ("bash", "read", "grep", "glob", "edit", "write")
-# UI markers must be precise: this script now blocks task closure on main-tier
-# UI work without a vision dispatch, so generic tokens such as "console" or
+# UI markers are diagnostic only. Generic tokens such as "console" or
 # "portal" (which appear in backend hosts, log lines and curl targets) are not
 # markers. Only file-path-shaped or surface-specific evidence counts.
 UI_MARKERS = (
@@ -579,14 +576,10 @@ def gate_report(
     policy: dict | None = None,
     receipts_passed: bool | None = None,
 ) -> dict:
-    """Turn a report into a pass/fail compliance gate.
+    """Turn a report into a diagnostic summary.
 
-    Blocking violations must be fixed before a task closes:
-      - production-remote commands from the subscription-tier main session;
-      - UI-touching calls on the main tier without any vision-tier dispatch
-        (beyond a small tolerance).
-    Advisory violations are reported without blocking: owner execution share,
-    context median, planning split, 1M promotions.
+    Role, UI and model observations are advisory. Project plans, task receipts
+    and production executors own blocking safety decisions.
     """
     policy = policy or {"advisoryInjections": {}}
     if budget is None:
@@ -603,7 +596,7 @@ def gate_report(
         )
     prod_calls = report.get("prodCallsOnSubscriptionTier") or []
     if prod_calls:
-        blocking.append(
+        advisory.append(
             {
                 "code": "prod-command-on-subscription-tier",
                 "count": len(prod_calls),
@@ -615,7 +608,7 @@ def gate_report(
     ui_main = report["mainSession"]["uiCallsOnMainTier"]
     vision = report["visionTierDispatches"]
     if ui_main > ui_call_threshold and vision == 0:
-        blocking.append(
+        advisory.append(
             {
                 "code": "ui-work-without-vision-tier",
                 "count": ui_main,
@@ -693,11 +686,11 @@ def gate_report(
                 }
             )
     split = report["planningSplit"]["shareToAdjudication"]
-    if split is not None and split < 0.5:
+    if split is not None:
         advisory.append(
             {
-                "code": "planning-not-half-to-adjudication",
-                "detail": f"shareToAdjudication={split} below 0.5; draft planning goes to @plan_alt",
+                "code": "planning-share-observed",
+                "detail": f"independent-planning share observed at {split}; no target ratio is enforced",
             }
         )
     owner_share = report["tierSplit"]["ownerExecutionShare"]
@@ -705,7 +698,7 @@ def gate_report(
         advisory.append(
             {
                 "code": "owner-execution-share-high",
-                "detail": f"ownerExecutionShare={owner_share} above 0.30; batch reads and commands go to the execution tier",
+                "detail": f"ownerExecutionShare={owner_share}; use a worker only when it saves time or isolates risk",
             }
         )
     median = report["mainSession"]["contextMedian"]

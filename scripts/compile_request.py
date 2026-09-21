@@ -143,11 +143,11 @@ def compile_request(request: str, *, mode: str = "auto", project_root: str | Pat
     if browser:
         acceptance.append("若计划声明浏览器需求，补齐真实入口证据并写入项目 .work")
 
-    role_hints = ["@plan_owner"]
+    role_hints = ["@owner"]
     if ui:
-        role_hints.append("按需 @ui_deep / @ui_impl / @ui_qa，不默认串行启用")
+        role_hints.append("UI 作为能力标签，必要时由 @worker 或 @reviewer 承担")
     if resolved_mode == "diagnose":
-        role_hints.append("需要独有事实时才启用 @fast_worker")
+        role_hints.append("需要独有事实时才启用 @worker")
 
     questions: list[str] = []
     if remote:
@@ -170,7 +170,7 @@ def compile_request(request: str, *, mode: str = "auto", project_root: str | Pat
             "continuation": continuation,
         },
         "defaults": {
-            "ownerRole": "@plan_owner",
+            "ownerRole": "@owner",
             "topology": "solo",
             "nonGoals": [
                 "不扩大为无关的全量扫描、构建、部署或生产写",
@@ -194,7 +194,7 @@ def compile_request(request: str, *, mode: str = "auto", project_root: str | Pat
             "requiresProjectPlan": resolved_mode in {"implement", "verify", "resume"}
             or remote
             or destructive,
-            "requiresFreezeBeforeRemote": remote,
+            "requiresFreezeBeforeRemote": remote and (destructive or credentials),
             "requiresRemotePreflight": remote,
             "requiresRealEntryReceipt": browser,
             "requiresClose": resolved_mode in {"implement", "verify", "resume"}

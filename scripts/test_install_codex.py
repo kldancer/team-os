@@ -136,12 +136,12 @@ class InstallRuntimeTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("OMP 用户级短内核", (home / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertIn("常驻安全规则", (home / "RULES.md").read_text(encoding="utf-8"))
-            planner = home / "agents/team-os-planner.md"
-            ui_designer = home / "agents/team-os-ui-designer.md"
-            fast_worker = home / "agents/team-os-bounded-worker.md"
-            self.assertIn('@plan_owner', planner.read_text(encoding="utf-8"))
-            self.assertIn('@ui_deep', ui_designer.read_text(encoding="utf-8"))
-            self.assertIn('@fast_worker', fast_worker.read_text(encoding="utf-8"))
+            planner = home / "agents/team-os-owner.md"
+            ui_designer = home / "agents/team-os-reviewer.md"
+            fast_worker = home / "agents/team-os-worker.md"
+            self.assertIn('@owner', planner.read_text(encoding="utf-8"))
+            self.assertIn('@reviewer', ui_designer.read_text(encoding="utf-8"))
+            self.assertIn('@worker', fast_worker.read_text(encoding="utf-8"))
             catalog = home / "models/catalog.yaml"
             self.assertTrue(catalog.is_file())
             self.assertIn("activePortfolio", catalog.read_text(encoding="utf-8"))

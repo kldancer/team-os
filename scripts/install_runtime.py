@@ -43,13 +43,9 @@ COMMON_FILES = {
     / "real-browser-verification.md",
 }
 OMP_AGENT_FILES = {
-    "agents/team-os-planner.md": ROOT / "omp/agents/team-os-planner.md",
-    "agents/team-os-planner-alt.md": ROOT / "omp/agents/team-os-planner-alt.md",
-    "agents/team-os-ui-designer.md": ROOT / "omp/agents/team-os-ui-designer.md",
-    "agents/team-os-deep-reviewer.md": ROOT / "omp/agents/team-os-deep-reviewer.md",
-    "agents/team-os-fast-scout.md": ROOT / "omp/agents/team-os-fast-scout.md",
-    "agents/team-os-bounded-worker.md": ROOT / "omp/agents/team-os-bounded-worker.md",
-    "agents/team-os-ui-implementer.md": ROOT / "omp/agents/team-os-ui-implementer.md",
+    "agents/team-os-owner.md": ROOT / "omp/agents/team-os-owner.md",
+    "agents/team-os-worker.md": ROOT / "omp/agents/team-os-worker.md",
+    "agents/team-os-reviewer.md": ROOT / "omp/agents/team-os-reviewer.md",
 }
 
 
@@ -184,8 +180,16 @@ def install(runtime: str, target_home: Path, *, check: bool) -> list[str]:
 
     stale = sorted(set(managed) - set(desired))
     if stale:
-        actions.extend(f"left stale managed file in place: {relative}" for relative in stale)
-        next_managed.update({relative: managed[relative] for relative in stale})
+        for relative in stale:
+            target = target_home / relative
+            if not target.exists():
+                actions.append(f"forgot obsolete managed file: {relative}")
+            elif target.is_file() and not target.is_symlink() and digest_file(target) == managed[relative]:
+                target.unlink()
+                actions.append(f"removed obsolete managed file: {relative}")
+            else:
+                actions.append(f"left locally modified stale file in place: {relative}")
+                next_managed[relative] = managed[relative]
     manifest = json.dumps(
         {
             "version": 2,

@@ -4,7 +4,7 @@
 
 - Team OS 维护跨项目稳定的目标合同、协作拓扑、角色能力、复盘方法和运行时适配器；
 - `jusuan-installer` 等平台总控仓库维护各自的业务事实、子工程清单、机器 Gate、正式设计、生产环境和可执行 Skill；
-- 选定的 Agent harness 维护 Session、工具执行、权限提示和交互体验；
+- 选定的 Agent harness 维护 Session、工具执行、权限提示和交互体验；项目 Task Runner 维护长任务执行、日志、收据和恢复；
 - Munder 或其他可视化运行时以后可以消费 Team OS，但不是工作流生效的前置依赖。
 
 依赖方向固定为：`Team OS 通用核心 → 运行时适配器 → 项目覆盖层`。越靠近项目，事实越具体、优先级越高；Team OS 不复制项目正文，不保存运行流水。运行时的 Goal、todo、Session 和 subagent 只是结果合同的执行投影，不是长期事实源。
