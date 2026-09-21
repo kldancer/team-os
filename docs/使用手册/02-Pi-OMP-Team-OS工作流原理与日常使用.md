@@ -252,6 +252,31 @@ flowchart LR
     class REPAIR repair;
 ```
 
+### 6.4 长阶段交付与镜像构建原则
+
+工厂把等待、构建和验证都视为可观测事件，不允许长时间静默：
+
+- 长阶段实时转发带组件/阶段前缀的输出，至少每 30 秒写一次心跳，并设置阶段 hard timeout；
+- 同一 lane 只按真实依赖串行；无依赖且读写集合不冲突的 lane 可受控并行，共享写资源保持单一 owner；
+- 一个业务事实只由一个主要证明者闭合，避免把浏览器、contract、smoke、rollout 重复堆叠。
+
+镜像构建遵守最小目标原则：
+
+- 多二进制 Dockerfile 先共享依赖准备，再按可部署目标拆分 builder stage；单目标构建不得触发无关二进制；
+- Go 构建使用 module/build cache，批量镜像按 Builder 容量受控并行；
+- Registry cache 先用冷构建、热构建和单文件变更测量命中收益，再决定是否启用；
+- 镜像名、Chart command、migration/worker 等运行合同属于项目仓库，Team OS 只维护这些通用原则。
+
+具体 Builder、基础镜像、并发上限、Dockerfile target 和收据由目标项目维护；动态构建/刷新证据写入项目 `.work`。
+
+### 6.5 判断引擎扩展位（Jev）
+
+Jev 只作为判断层适配器，不改变角色职责、默认模型或流程所有权。首批候选是 request compiler 的流程 owner 六选一、生产/远端写与破坏性操作检测，以及低风险 Skill 的 top-K 建议。
+
+- 现有规则或 Owner 仍是权威；Jev 先以影子模式运行，只返回类型化结果、概率/置信度和版本，并写入脱敏 `.work` 收据；
+- 不向 Jev 发送 diff、凭据、完整收据或生产数据；不允许它跳过 freeze、preflight、Gate、真实浏览器验收，也不承担最终方案和报告；
+- 不可用、超时、版本漂移或低置信时 fail-safe 回退现有 compiler；只有分歧率、漏报率、延迟和 token/cost 收益达标，才允许高置信低风险结果渐进参与路由。
+
 ## 7. 可直接使用的话术：短输入，工厂补全
 
 日常不需要填写结果合同。你只说实际想解决、实现或验证的事情，当前 Owner 会读取项目事实并自动补齐意图、范围、角色、验证和停止条件；默认 `@plan_owner`、`solo` 和最短可验证路径。只有产品选择、生产/远端写、删除、凭据或事实冲突才会停下来询问。
@@ -302,7 +327,9 @@ flowchart LR
 
 工厂会按影响和证据按需选择能力：纯后端不启动视觉角色；新视觉方向或基线不明确时启用 `@ui_deep`；已有视觉合同交 `@ui_impl`；需要独立截图、DOM 或真实入口核对时再启用 `@ui_qa`，不默认串起三者。
 
-真实浏览器也由工厂选择最小通道：已知步骤用 `playwright-cli` 具名 Session；登录态或探索用 OMP Browser Eval 具名 Tab；Network、Console、性能或 Trace 用 DevTools。动作、等待和断言批量执行，脱敏收据写入项目 `.work`。只运行机器计划判定适用的 Gate/healthcheck/smoke，完成后返回实际变更、验证证据、未验项和风险。
+真实浏览器也由工厂选择最小通道：已知步骤用 `playwright-cli` 具名 Session；登录态或探索用 OMP Browser Eval 具名 Tab；Network、Console、性能或 Trace 用 DevTools。常规 Portal targeted Gate 以 Chromium 为主浏览器；WebKit 与完整套件只在 release candidate 或共享浏览器合同命中时运行。动作、等待和断言批量执行，脱敏收据写入项目 `.work`。只运行机器计划判定适用的 Gate/healthcheck/smoke，完成后返回实际变更、验证证据、未验项和风险。
+
+生产刷新、schema observe、镜像构建和真实验证等长阶段不再静默等待：底层入口会转发带组件/阶段前缀的输出，并至少每 30 秒写入任务心跳。一个业务事实只保留一个主要证明者：浏览器证明页面行为，contract/smoke 证明 API 或后台合同，rollout 证明运行态；不因“更完整”重复追加验证。
 
 ### 7.4 运行态操作：恢复、临时换模和持久变更分开
 

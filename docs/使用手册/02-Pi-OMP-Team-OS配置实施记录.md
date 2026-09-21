@@ -40,6 +40,29 @@ python3 scripts/install_runtime.py omp --profile team-os --check
 
 安装器只管理 Team OS 清单内的投影文件，不覆盖 Profile 的认证、`models.yml` 和 `config.yml`。如果修改的是角色绑定或运行设置，需要在 Profile 中完成并另行执行路由检查。
 
+### 2.1 OMP 更新后的恢复顺序
+
+`omp update` 只更新 OMP 程序和其迁移状态，不是 Team OS 角色定义的事实源。更新后若 Roles 视图出现旧模型或旧职责，按下面顺序恢复：
+
+```bash
+cd /Users/kailonyang/go/src/team-os
+python3 scripts/install_runtime.py omp --profile team-os
+python3 scripts/install_runtime.py omp --profile team-os --check
+python3 scripts/check_model_routes.py --profile team-os
+```
+
+若检查仅提示 `cliproxyapi/gpt-5.6-sol` 未出现在 OMP 本地模型缓存，不直接代表角色漂移；先核对 `config.yml` 的绑定与 `routes` 的 configured/expected 是否一致。若实际请求也返回 `503`，或刷新后仍缺少目标模型，按 §6.1.1 恢复 Codex OAuth 和模型发现，不能只凭静态绑定认定模型可用。
+
+随后退出旧 Session，使用同一 Profile 新建 Session：
+
+```bash
+omp --profile team-os
+```
+
+原因是 Session 初始化时会把当时的 `AGENTS.md`、`RULES.md`、Skill 和角色说明编译进系统上下文；恢复旧 Session 只会继续这份历史上下文，不会因 OMP 二进制更新或文件投影变化而重写它。旧 Session 若必须继续，先发送工作流手册 §7.4 的“加载最新工作流规范”话术，再核对 `/model` 与 resolved model；若仍显示旧角色，直接新建 Session。
+
+不要直接编辑 `~/.omp/profiles/team-os/agent/AGENTS.md`、`RULES.md` 或 `models/catalog.yaml`；`--check` 报 drift 时以 Team OS 源文件重新投影，避免把旧会话或 OMP 内置默认误当成当前角色配置。
+
 ## 3. 当前 Profile 基线
 
 以下是本次收敛时的目标基线；以本机 `config.yml` 和命令输出为准：
@@ -157,6 +180,43 @@ omp --profile team-os models cliproxyapi
 
 当前不安装 `@router-for-me/pi-cliproxyapi-provider`；采用 OMP 原生 `models.yml`。重新准入必须重新验证模型发现、流式响应、工具调用和 Session 恢复。
 
+#### 6.1.1 Codex 上游不可用时的恢复记录
+
+当 OMP 报告 `503 auth_unavailable`，且错误中包含
+`last upstream error: server_is_overloaded`，先区分三层状态：
+
+1. CLIProxyAPI 服务是否仍在监听；
+2. Codex OAuth 凭据是否有效；
+3. Codex 上游是否重新提供目标模型和推理能力。
+
+本次恢复采用以下最小闭环：
+
+```bash
+# 重新建立 CLIProxyAPI 管理的 Codex OAuth 凭据
+cliproxyapi -codex-login \
+  -config /opt/homebrew/etc/cliproxyapi.conf
+
+# 让常驻服务加载新的凭据
+brew services restart cliproxyapi
+brew services info cliproxyapi
+
+# 重新执行 CLIProxyAPI 模型发现并刷新 OMP 本地缓存
+omp --profile team-os models refresh
+omp --profile team-os models cliproxyapi
+```
+
+恢复验收至少包括：
+
+- `brew services info cliproxyapi` 显示服务运行；
+- `omp --profile team-os models cliproxyapi` 重新列出目标模型；
+- 新建 OMP Session 后，用目标模型发送一个最小请求，确认不再返回 `503`；
+- 再运行路由检查，确认实际 resolved model 与角色绑定一致。
+
+不要手工编辑 `~/.cli-proxy-api/*.json`、`models.yml` 或 `models.db`，也不要为了绕过
+`server_is_overloaded` 无限增加重试。若重新 OAuth 后实时模型接口仍不返回目标模型，
+应判定为 Codex 上游暂时过载或模型准入变化，临时切换到实时可发现的同档模型，等待上游恢复后再刷新缓存；
+模型列表可见不等于真实推理一定可用，最终以最小真实请求为准。
+
 ### 6.2 Kimi、智谱和执行通道
 
 | Provider | 当前角色 | 接入方式 | 注意 |
@@ -251,6 +311,7 @@ providers:
 | 规则没生效 | `config path`、安装器 `--check`、Session 是否为新建 | 重新投影并新建 Session |
 | 模型角色不对 | `/model` Roles、Agent Hub resolved model、`check_model_routes.py` | 修正 Profile 或目录，不接受静默 fallback |
 | Provider 无模型 | `omp --profile team-os models <provider>`、钥匙串引用、`models.yml` schema | 先修认证和发现，再改角色 |
+| CLIProxyAPI 返回 `503 auth_unavailable` 且含 `server_is_overloaded` | 服务状态、Codex OAuth、实时模型发现 | 按 §6.1.1 重新 OAuth、重启服务并刷新缓存；不要手工伪造模型 |
 | Browser/Computer 不可用 | Profile 开关、`/computer status`、macOS 权限 | 新建 Session 后复核 |
 | Session 恢复重复规划 | 项目 `.work` 的 outcome、授权、变更和收据 | 不搬完整 Transcript，按最小恢复包继续 |
 | 上下文过长 | `.work` 是否已落盘、`/compact`、是否需要新 Session | 先压缩动态事实，再切换模型 |
