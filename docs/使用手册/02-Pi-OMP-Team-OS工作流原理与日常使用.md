@@ -86,6 +86,8 @@ python3 .agents/scripts/juspctl.py resume --task <task-id>
 | “提交并推送这批变更” | owner 分类 → `ship-changes` | 唯一提交入口；仍需你当次明确授权 |
 | “继续上次任务 / 按现有结论继续” | 恢复原 owner | 读 `.work` 的任务状态、有效收据和当前规范，沿用原 taskId，不重复规划 |
 
+重新分析之前得出的问题根因结论和设计思路解决方案，需要描述的形象而准确，不要堆积专有名词。
+
 生产相关说法：
 
 | 你说 | 实际进入 |
@@ -102,7 +104,14 @@ python3 .agents/scripts/juspctl.py resume --task <task-id>
 - “顺便清理无关旧代码”——不做授权外扩张。
 - 在话术里粘贴 token、密码——内容先脱敏，凭据只按项目安全合同使用。
 
-运行态操作（换模型、重载规则）不是业务场景：说“将 <role> 角色变更为 <provider/model>”后必须实际落到 `/model`、`--model` 或 Profile，并回报旧/新模型、作用域、fallback、resolved model 和恢复方式；规范更新后旧 Session 不自动重写上下文，新建或恢复 Session 让 OMP 重新加载投影。
+运行态操作（换模型、重载规则）不是业务场景：说“将 <role> 角色变更为 <provider/model>”后必须实际落到 `/model`、`--model` 或 Profile，并回报旧/新模型、作用域、fallback、resolved model 和恢复方式；规范更新后旧 Session 不自动重写上下文，优先新建或恢复 Session。必须留在已打开的旧 Session 时，输入：
+
+```text
+工作流已翻新，忽略你上下文中的旧流程记忆，按以下来源重建认知：
+1. 重新读取 ~/.omp/profiles/team-os/agent/AGENTS.md 与 RULES.md、本仓库 AGENTS.md、docs/平台开发联调部署规范.md 和命中的 Skill。
+2. 只做规则加载与状态确认：读取当前 taskId 的 .work 状态与有效收据，确认 resolved model；不创建新任务、不改代码、不重新规划已有结论。
+3. 完成后回报：已加载文件清单、当前任务状态，并用三句话复述关键差异（角色模型、生产入口、验证路径）。
+```
 
 ## 7. 收尾
 
