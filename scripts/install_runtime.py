@@ -57,6 +57,12 @@ def runtime_files(runtime: str) -> dict[str, Path]:
     if runtime not in RUNTIMES:
         raise InstallError(f"unsupported runtime: {runtime}")
     files = {"AGENTS.md": ROOT / runtime / "AGENTS.md", **COMMON_FILES}
+    if runtime == "codex":
+        base = ROOT / "skills/team-os-codex"
+        for relative in ("SKILL.md", "references/execution.md", "references/models.md",
+                         "references/collaboration.md", "references/browser.md",
+                         "scripts/project_bridge.py"):
+            files[f"skills/team-os-codex/{relative}"] = base / relative
     if runtime == "omp":
         files["RULES.md"] = ROOT / "omp/RULES.md"
         files.update(OMP_AGENT_FILES)
@@ -127,7 +133,26 @@ def desired_files(runtime: str) -> dict[str, bytes]:
     missing = [str(path) for path in sources.values() if not path.is_file()]
     if missing:
         raise InstallError(f"missing projection source: {', '.join(missing)}")
-    return {relative: source.read_bytes() for relative, source in sources.items()}
+    desired = {relative: source.read_bytes() for relative, source in sources.items()}
+    if runtime == "codex":
+        # Keep the shared Skill name, while selecting the actual Codex browser
+        # contract. OMP and Pi projections remain byte-for-byte unchanged.
+        desired["skills/team-os-browser-verify/SKILL.md"] = (
+            "---\nname: team-os-browser-verify\n"
+            "description: 在 Codex 中验证真实网页入口并生成脱敏证据；不拥有业务交付或生产授权。\n"
+            "---\n\n# Codex 浏览器取证\n\n"
+            "按 [Codex 浏览器证据](../team-os-codex/references/browser.md) "
+            "选择当前实际可用工具并验证真实入口。项目 UI 与 Gate 仍是权威。\n"
+        ).encode()
+        desired["skills/team-os-browser-verify/references/real-browser-verification.md"] = (
+            ROOT / "skills/team-os-codex/references/browser.md"
+        ).read_bytes()
+        key = "skills/team-os-ui/SKILL.md"
+        desired[key] = desired[key].replace(
+            b"../../workflows/real-browser-verification.md",
+            b"../team-os-codex/references/browser.md",
+        )
+    return desired
 
 
 def verify_target(target_home: Path, desired: dict[str, bytes], managed: dict[str, str]) -> list[str]:

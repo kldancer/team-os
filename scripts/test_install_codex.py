@@ -160,3 +160,29 @@ class InstallRuntimeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CodexFactoryProjectionTest(unittest.TestCase):
+    def run_runtime(self, home: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(RUNTIME_SCRIPT), "codex", "--home", str(home), *extra],
+            text=True, capture_output=True, check=False,
+        )
+
+    def test_codex_projection_contains_adapter_but_omp_does_not(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "codex"
+            result = self.run_runtime(home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((home / "skills/team-os-codex/SKILL.md").is_file())
+            self.assertIn("Codex 浏览器取证", (home / "skills/team-os-browser-verify/SKILL.md").read_text())
+            self.assertIn("Codex", (home / "skills/team-os-browser-verify/references/real-browser-verification.md").read_text())
+            self.assertEqual(self.run_runtime(home, "--check").returncode, 0)
+
+    def test_codex_projection_keeps_unrelated_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "codex"
+            personal = home / "skills/personal/SKILL.md"
+            personal.parent.mkdir(parents=True)
+            personal.write_text("keep\n", encoding="utf-8")
+            self.assertEqual(self.run_runtime(home).returncode, 0)
+            self.assertEqual(personal.read_text(encoding="utf-8"), "keep\n")

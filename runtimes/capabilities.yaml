@@ -20,6 +20,8 @@ harnesses:
     graphicalClient: native
     sandbox: environment-dependent
     collaborationEvidence: sidebar-task-status-transcript-and-result
+    modelPolicy: explicit-runtime-selection; Astra-or-Sol; no-silent-fallback
+    projectExecution: adapter-project-bridge-and-native-runner
   pi:
     userProjection: pi
     contextFiles: native

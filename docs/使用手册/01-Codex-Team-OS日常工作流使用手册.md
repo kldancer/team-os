@@ -1,574 +1,174 @@
 # Codex + Team OS 日常工作流使用手册
 
-> 面向长期日常使用的入口手册。它解释“怎么用、为什么这样工作、事实在哪里”，不替代项目自己的 `AGENTS.md`、正式设计、机器 Gate 或生产合同。
+> 本手册描述 Team OS 的 Codex 独立运行时工厂。它说明运行边界、日常入口、恢复方式和维护责任；不替代项目自己的 `AGENTS.md`、正式设计、机器计划、Gate 或生产合同。
+>
+> Team OS + OMP 是并行的成熟路线，继续由 [Pi/OMP 手册](02-Pi-OMP-Team-OS工作流原理与日常使用.md) 维护。本手册不把 Codex 规则写回 OMP，也不要求两条路线共享运行时配置。
 
-## 1. 先用一句话理解整套系统
+## 1. 三层边界
 
-本手册只描述 **Codex Mac 客户端**适配器；Pi/OMP 入口见 [`02-Pi-OMP-Team-OS日常工作流使用手册.md`](02-Pi-OMP-Team-OS日常工作流使用手册.md)。你仍然先和当前主任务讨论，满意后说“按结论开始推进”；具体模型由 Codex 用户配置显式选择，Team OS 不再写死模型名称。Team OS 在背后提供跨项目稳定的协作方法，目标项目则提供业务事实、代码、Gate 和运行边界。
+Codex 工厂把 Team OS 的稳定方法投影到 Codex 用户目录，同时保留项目自己的执行事实：
 
-```mermaid
-flowchart LR
-    U(["🧑 你<br/>提出目标 · 做取舍 · 给授权"])
+| 层 | 拥有的事实 | 不拥有的事实 |
+| --- | --- | --- |
+| Codex Runtime | 当前任务、模型、推理档位、工具、权限、协作和交互 | 项目业务合同、生产授权、长期任务状态 |
+| Team OS Core | 结果责任、单一 Owner、最小协作、上下文经济和跨项目方法 | 项目服务清单、Gate、生产事实、OMP Profile |
+| 项目仓库 | 项目 AGENTS、正式设计、机器计划、Runner、Gate、代码和生产边界 | 跨项目运行时方法 |
 
-    subgraph COCKPIT["🛩️ 驾驶舱：Codex Mac"]
-        C["💬 当前主任务<br/>讨论 · 分析 · 综合 · 交付"]
-        S["🧵 独立 Session<br/>短期上下文与工具过程"]
-    end
+项目 Runner 和 `.work` 是长任务事实源。Codex 适配器只负责把当前任务与项目计划关联、读取状态、选择适用工具并综合证据；它不创建第二套任务数据库，不代替项目 `close`、`apply`、`start` 或 `freeze`。
 
-    subgraph COMPASS["🧭 航海规则：Team OS"]
-        K["📜 短内核<br/>安全 · 结果责任 · 最小协作"]
-        SK["🧰 按需 Skill<br/>规划 · 复盘"]
-        R["🎭 角色/能力目录<br/>需要什么专业证据"]
-    end
+同一个项目可以分别使用 OMP 和 Codex，但两条路线不能同时接管同一个写任务。切换运行时前，先停止原写者，读取项目状态、有效收据、剩余验收和授权范围；原 task ID 保持不变。
 
-    subgraph FACTORY["🏗️ 项目工厂：平台总控仓库与子工程"]
-        A["🗺️ 项目 AGENTS / 正式设计<br/>这里真正定义项目"]
-        P["⚙️ 机器计划与 Gate<br/>决定该跑什么"]
-        W["🧩 目标代码仓库<br/>实现纵向结果"]
-        E[("🧾 .work<br/>动态状态与收据")]
-    end
+## 2. 当前规则如何进入任务
 
-    U -->|"自然语言交流"| C
-    K -.->|"用户级自动加载"| C
-    SK -.->|"任务命中时加载"| C
-    R -.->|"出现能力缺口时读取"| C
-    C --- S
-    C -->|"读取更具体的项目权威"| A
-    A --> P --> W --> E
-    E -->|"证据回到主任务"| C
-    C -->|"结果与风险汇报"| U
+Codex 采用逐层加载，不把完整 Team OS 或整个项目文档预先塞进每个任务：
 
-    classDef human fill:#fff4cc,stroke:#9a6b00,color:#3d2b00,stroke-width:2px;
-    classDef codex fill:#dcecff,stroke:#2b6cb0,color:#17365d,stroke-width:2px;
-    classDef team fill:#efe4ff,stroke:#7b3fc6,color:#36205a,stroke-width:2px;
-    classDef project fill:#dcf7e8,stroke:#21865a,color:#123f2e,stroke-width:2px;
-    classDef receipt fill:#fff0e3,stroke:#bf6b21,color:#5a2f0d,stroke-width:2px;
-    class U human;
-    class C,S codex;
-    class K,SK,R team;
-    class A,P,W project;
-    class E receipt;
+```text
+~/.codex/AGENTS.md
+    ↓
+项目 AGENTS.md
+    ↓
+命中的 Team OS / 项目 Skill
+    ↓
+任务需要的正式设计、配置和机器入口
+    ↓
+项目 .work 中的计划、状态和收据
 ```
 
-三个容易混淆的边界：
-
-| 系统 | 它拥有的东西 | 它不拥有的东西 |
+| 载体 | 责任 | 维护位置 |
 | --- | --- | --- |
-| Codex Mac | 任务、Session、模型、工具、权限和交互体验 | 项目长期业务事实 |
-| Team OS | 跨项目稳定的方法、协作拓扑、角色能力、用户级短内核 | 某个平台的服务清单、Gate、生产事实和运行流水 |
-| 项目总控仓库 | 项目业务、子工程索引、正式设计、机器计划、Gate 和生产边界 | 跨项目通用工作方法 |
+| `~/.codex/AGENTS.md` | Team OS 的 Codex 用户级短内核 | Team OS `codex/AGENTS.md` |
+| `team-os-plan` | 结果合同、复杂规划和最小拓扑 | Team OS Skill |
+| `team-os-codex` | Codex 计划绑定、恢复、协作隔离、浏览器证据和模型适配 | Team OS Skill |
+| 项目 `AGENTS.md` | 项目安全红线、权威路由和机器入口 | 目标项目仓库 |
+| 项目流程 Skill | 设计、诊断、交付、评审、验证和提交流程 | 目标项目仓库 |
+| 正式设计与配置 | 产品、架构、接口、Gate、部署和生产合同 | 目标项目权威文档 |
+| `.work` | 动态计划、运行状态和脱敏收据 | 目标项目仓库 |
 
-因此，采用 Team OS **不会替换 Codex 客户端**，也不会要求先运行 Munder。Munder 若以后恢复，只是另一种可视化入口。
-
-## 2. 规则是怎样进入当前任务的
-
-规则不是一次性把所有文档塞进 Prompt，而是像“逐层展开地图”一样按需加载：
-
-```mermaid
-flowchart TB
-    Q["🎯 当前目标与本次授权"]
-    G["🌍 用户级短内核<br/>~/.codex/AGENTS.md"]
-    P["🏢 项目覆盖层<br/>项目 AGENTS.md"]
-    D["📚 目标片段<br/>正式设计 · 实施规范 · 配置"]
-    M["⚙️ 机器事实<br/>changed paths · Gate · workspace"]
-    X["🔎 当前任务最小上下文"]
-
-    Q --> X
-    G -->|"跨项目稳定习惯"| X
-    P -->|"更具体的项目约束"| X
-    D -->|"任务需要时才读"| X
-    M -->|"执行前解析"| X
-
-    N["🚫 不默认装入<br/>完整 Team OS · 全项目文档 · 历史 Transcript"]
-    N -.->|"避免上下文膨胀"| X
-
-    classDef input fill:#fff4cc,stroke:#9a6b00,color:#3d2b00;
-    classDef layer fill:#e9e4ff,stroke:#7357c2,color:#2f2850;
-    classDef project fill:#dcf7e8,stroke:#21865a,color:#123f2e;
-    classDef current fill:#dcecff,stroke:#2b6cb0,color:#17365d,stroke-width:3px;
-    classDef no fill:#ffe0e0,stroke:#c23b3b,color:#641f1f;
-    class Q input;
-    class G layer;
-    class P,D,M project;
-    class X current;
-    class N no;
-```
-
-| 载体 | 何时加载 | 保存什么 |
-| --- | --- | --- |
-| `~/.codex/AGENTS.md` | Codex 发现用户级指令时 | Team OS 七条短内核 |
-| 项目 `AGENTS.md` | 进入对应项目作用域时 | 项目安全红线、权威路由和机器入口 |
-| `team-os-plan` | “按结论开始推进”、复杂模块、跨仓规划等命中时 | 结果合同、覆盖规划和最小协作拓扑的方法 |
-| 项目流程 Skill | 意图命中时 | 诊断、设计、交付、评审、提交等唯一流程 |
-| 正式设计/配置 | 当前业务链需要时 | 真实产品、架构、路径、Gate 与生产事实 |
-| 当前 Session | 工作过程中 | 短期讨论、决策连续性和工具过程 |
-| 项目 `.work` | 执行和验证过程中 | 动态计划、状态、收据；不进入长期文档 |
-
-检查 Team OS 用户级投影是否生效：
+更新用户级投影：
 
 ```bash
 cd <team-os-root>
+python3 scripts/install_codex.py
 python3 scripts/install_codex.py --check
 ```
 
-更新用户级投影后，新建一个 Codex 任务可以确保它从起点加载最新版短内核。完整 Team OS 文档不会因此进入每个任务上下文。
+`~/.codex` 是投影目标，不是维护源。不要直接编辑受管文件；如果校验报告 drift，应回到 Team OS 源文件修复后重新安装。安装器只管理清单内文件，发现本地手工修改时会拒绝覆盖。
 
-## 3. 最常用的主链：讨论完，直接推进
+## 3. 日常主链
 
-你不需要先填任务卡，也不需要自己拆前端、后端和测试人员。
+用户只需要提供目标、取舍和授权。Owner 负责把它闭合成一个可验证结果：
 
-```mermaid
-flowchart LR
-    I(["💡 1. 初始想法"])
-    TALK["🗣️ 2. 与主任务讨论<br/>目标 · 取舍 · 方案"]
-    START["🚦 3. 说：<br/>按结论开始推进"]
-    BLUE["📐 4. 编译执行合同<br/>结果 · 场景 · 边界 · DAG · 验收"]
-    TEAM{"🧭 5. 最小拓扑<br/>solo 还是 N 个独立任务？"}
-    BUILD["🛠️ 6. 纵向实现<br/>一个负责人保持集成"]
-    CHECK["🧪 7. 适用 Gate<br/>与真实入口事实"]
-    DONE(["✅ 8. 用户可验证结果"])
-    REPAIR["🩹 同一结果的遗漏<br/>回原任务批量闭合"]
+1. 讨论目标和约束，确认结果、非目标和完成条件。
+2. 读取项目 AGENTS、目标设计和必要机器事实。
+3. 按意图选择唯一流程所有者：`design`、`diagnose`、`deliver-change`、`review` 或 `ship-changes`。
+4. 小任务直接执行；复杂或跨边界任务按需使用 `team-os-plan`，并把合同落到项目 planner。
+5. 以最小纵向切片实现或验证，保留真实 diff。
+6. 只运行 changed paths、lane 和项目 Gate 要求的适用验证。
+7. 记录未验项、失败和剩余风险；必要时使用同一 outcome 和 task ID 继续修复。
+8. 运行事实闭合后按项目入口 close；需要提交时再转入 `ship-changes`。
 
-    I --> TALK --> START --> BLUE --> TEAM --> BUILD --> CHECK --> DONE
-    CHECK -->|"发现同一 outcome 的遗漏"| REPAIR --> BLUE
+“按结论开始推进”表示结论已经确定并授权实施，不表示跳过项目计划、验证或生产保护。生产和远端写仍然必须遵守项目授权、preflight、freeze、回退和真实入口合同。
 
-    classDef idea fill:#fff4cc,stroke:#9a6b00,color:#3d2b00;
-    classDef think fill:#e9e4ff,stroke:#7357c2,color:#2f2850;
-    classDef action fill:#dcecff,stroke:#2b6cb0,color:#17365d;
-    classDef build fill:#dcf7e8,stroke:#21865a,color:#123f2e;
-    classDef done fill:#d9f6d2,stroke:#36802d,color:#173f13,stroke-width:3px;
-    classDef repair fill:#fff0e3,stroke:#bf6b21,color:#5a2f0d;
-    class I idea;
-    class TALK,BLUE,TEAM think;
-    class START,CHECK action;
-    class BUILD build;
-    class DONE done;
-    class REPAIR repair;
-```
+## 4. 意图路由
 
-这条链专门解决三个旧痛点：
-
-1. **不再机械写两份文档。** 稳定语义直接进入正式设计；活动执行只保留一份覆盖型实施规划。
-2. **不让 happy path 冒充完整。** 规划必须覆盖场景、失败恢复、跨边界状态、实现 owner 和证据映射。
-3. **不把刷新后发现的每个小问题重新立项。** 同一用户结果复用原任务与原规划，集中修正后只生成一个新候选。
-
-## 4. 先说清意图，Codex 才会走对流程
-
-```mermaid
-flowchart TB
-    IN(["🗣️ 你的自然语言请求"])
-    SYM{"已有异常或症状？"}
-    FIX{"是否授权修改？"}
-    NEW{"新模块或大改造？"}
-    IMPL{"结论已经确定并要求落地？"}
-    SHIP{"只是提交/推送稳定变更？"}
-
-    D1["🔍 只读诊断<br/>症状 → 假设 → 证据 → 根因"]
-    D2["🩺 诊断并修复<br/>复现 → 根因保护 → 最小修复 → 验证"]
-    PLAN["📐 设计/规划<br/>合同与覆盖规划，不默认实现"]
-    DELIVER["🏗️ 端到端交付<br/>实现 · Gate · 运行事实 · 收敛"]
-    COMMIT["📦 末端提交<br/>范围复核 → commit → push"]
-    ANSWER["💬 回答/解释<br/>默认只读"]
-
-    IN --> SYM
-    SYM -->|"是"| FIX
-    FIX -->|"否：为什么会这样"| D1
-    FIX -->|"是：定位并整改"| D2
-    SYM -->|"否"| NEW
-    NEW -->|"是"| IMPL
-    IMPL -->|"否：先设计/规划"| PLAN
-    IMPL -->|"是：按结论开始推进"| DELIVER
-    NEW -->|"否"| SHIP
-    SHIP -->|"是"| COMMIT
-    SHIP -->|"否"| ANSWER
-
-    classDef ask fill:#fff4cc,stroke:#9a6b00,color:#3d2b00;
-    classDef decide fill:#e9e4ff,stroke:#7357c2,color:#2f2850;
-    classDef read fill:#dcecff,stroke:#2b6cb0,color:#17365d;
-    classDef write fill:#dcf7e8,stroke:#21865a,color:#123f2e;
-    classDef ship fill:#fff0e3,stroke:#bf6b21,color:#5a2f0d;
-    class IN ask;
-    class SYM,FIX,NEW,IMPL,SHIP decide;
-    class D1,PLAN,ANSWER read;
-    class D2,DELIVER write;
-    class COMMIT ship;
-```
-
-说法的差别会改变授权边界：
-
-| 你说 | 系统应理解为 |
+| 用户说法 | Codex 行为 |
 | --- | --- |
-| “分析为什么会这样” | 只读定位，不顺手修改 |
-| “定位并整改这个问题” | 同一个诊断闭环内完成最小修复和目标验证 |
-| “设计/规划这个模块” | 只形成正式设计或实施规划，不默认实现 |
+| “分析为什么会这样” | 只读诊断，输出假设、证据和根因 |
+| “定位并整改” | 在同一诊断闭环内复现、修复和验证 |
+| “设计/规划这个模块” | 形成正式设计或实施规划，不默认实现 |
 | “按以上结论开始推进” | 读取项目权威后端到端交付 |
-| “提交并推送当前稳定变更” | 只做末端范围复核、适用门禁、提交和推送，不重新设计 |
+| “评审当前改动” | 固定 diff/commit，只读输出可执行 findings |
+| “提交并推送” | 进入末端提交车道；仍需检查授权和门禁 |
 
-## 5. 大模块为什么只需要一份覆盖型实施规划
+模型可以分析和提出方案，但不改变授权。缺少业务决定只阻塞依赖该决定的分支，独立工作继续进行。
 
-覆盖型实施规划不是“步骤清单”，更像一张带消防通道的施工蓝图：每个用户场景必须能找到实现责任、失败处理和验收证据。
+## 5. 项目执行桥
 
-```mermaid
-flowchart TB
-    O["🎯 结果与非目标<br/>最终能验证什么；明确不做什么"]
+当项目有机器 planner（例如 `juspctl`）时，项目原生入口拥有计划和执行权。Codex 适配器的桥接脚本只做三类事情：
 
-    subgraph NET["🕸️ 防漏覆盖网"]
-        S["👥 场景与业务链<br/>谁从哪个真实入口得到什么结果"]
-        B["🚧 边界、状态与失败面<br/>UI/API/服务/数据/权限/异步/部署"]
-        D["🧱 实施 DAG 与协作拓扑<br/>纵向切片 · 依赖 · 写集合 · solo/N"]
-        G["🧪 保护、Gate 与运行验收<br/>场景逐行映射到证据"]
-    end
+- `plan`：显示或按明确参数调用项目本地 planner；
+- `bind`：把已存在的计划与当前 Codex 任务、checkout 和实际模型信息关联；
+- `inspect`：只读检查计划指纹和绑定是否仍然有效。
 
-    O --> S
-    O --> B
-    S --> D
-    B --> D
-    D --> G
-    G --> V(["✅ 一个可运行、可证伪、可恢复的候选"])
-
-    F["⚠️ 任一验收没有 owner/保护/证据<br/>或任一跨边界失败未处理"]
-    S -.-> F
-    B -.-> F
-    G -.-> F
-    F -->|"补齐后才能实施或冻结"| O
-
-    classDef core fill:#fff4cc,stroke:#9a6b00,color:#3d2b00,stroke-width:2px;
-    classDef cover fill:#dcecff,stroke:#2b6cb0,color:#17365d;
-    classDef build fill:#dcf7e8,stroke:#21865a,color:#123f2e;
-    classDef fail fill:#ffe0e0,stroke:#c23b3b,color:#641f1f;
-    classDef pass fill:#d9f6d2,stroke:#36802d,color:#173f13,stroke-width:3px;
-    class O core;
-    class S,B cover;
-    class D,G build;
-    class F fail;
-    class V pass;
-```
-
-完整规划模板见 [`../../templates/module-implementation-plan.md`](../../templates/module-implementation-plan.md)。它只保留当前可执行合同：长期产品语义仍写回目标项目正式设计，动态命令和收据仍留在项目 `.work`。
-
-## 6. 什么时候才真正使用多个 Agent
-
-默认是当前用户选定模型的一个主任务端到端负责。文件多、任务大、Agent 空闲都不是并行理由。
-
-```mermaid
-flowchart LR
-    CAP(["🧑‍✈️ 主任务<br/>唯一结果负责人"])
-    DEC{"工作真的独立吗？<br/>证据互补 / 写集合互斥 / 高风险独立验证"}
-    SOLO["🚲 solo<br/>保持上下文连续"]
-
-    subgraph FLEET["🚀 仅在收益覆盖协调成本时出动"]
-        L1["🔭 独立任务 A<br/>独立事实/方案首轮"]
-        L2["🛠️ 独立任务 B<br/>互斥写集合的纵向结果"]
-        L3["🛡️ 独立任务 C<br/>候选冻结后的独立验证"]
-    end
-
-    MERGE["🧩 主任务一次综合<br/>复核范围 · 冲突 · 证据"]
-    RESULT(["✅ 同一个用户结果"])
-    NO["🚫 不使用隐藏子智能体<br/>冒充独立 Session"]
-
-    CAP --> DEC
-    DEC -->|"否"| SOLO --> RESULT
-    DEC -->|"是"| L1
-    DEC -->|"是"| L2
-    DEC -->|"是"| L3
-    L1 --> MERGE
-    L2 --> MERGE
-    L3 --> MERGE
-    MERGE --> RESULT
-    NO -.-> DEC
-
-    classDef main fill:#e9e4ff,stroke:#7357c2,color:#2f2850,stroke-width:3px;
-    classDef solo fill:#dcecff,stroke:#2b6cb0,color:#17365d;
-    classDef model fill:#dcf7e8,stroke:#21865a,color:#123f2e;
-    classDef done fill:#d9f6d2,stroke:#36802d,color:#173f13,stroke-width:3px;
-    classDef no fill:#ffe0e0,stroke:#c23b3b,color:#641f1f;
-    class CAP,DEC,MERGE main;
-    class SOLO solo;
-    class L1,L2,L3 model;
-    class RESULT done;
-    class NO no;
-```
-
-需要真实会话协同时，可直接这样说：
-
-> 按结论开始推进。请用最短可验证路径端到端完成当前结果：先确认成功标准、非目标和授权，再读取会改变执行路径的项目事实。只有存在独有事实、互斥写集合或高风险独立验证时，才创建侧栏可见、拥有独立 Session、可单独验收的独立任务，禁止无意义准备工作和隐藏子智能体。
-
-每个独立任务必须带上：目标、非目标、输入、写集合、禁止修改、验证、时间预算、完成条件和停止条件。当前主任务维护 DAG、集成和跨 Lane Gate，检查实际产物与证据，不只听取“已完成”。
-
-常见拓扑与用途见 [`../../workflows/adaptive-collaboration.md`](../../workflows/adaptive-collaboration.md)。
-
-## 7. Outcome、Goal、任务、Session、规划和收据的关系
-
-把它们想成一次工程交付中的不同物件：
-
-| 名称 | 形象理解 | 正确用法 |
-| --- | --- | --- |
-| `outcome` | 🎯 要到达的目的地 | 一个用户可独立验证的结果；是最高层交付单位 |
-| Codex 任务/Session | 🚙 当前驾驶过程 | 保存短期讨论和工具连续性；同一结果优先继续原任务 |
-| Codex `goal` | 🧷 长途任务的续航锚点 | 只有用户明确要求才建立；一个 outcome 一个 goal |
-| 项目机器 task ID | 🏷️ 工地工程号 | 同一结果重规划仍沿用；结果改变才换新 ID |
-| 覆盖型实施规划 | 📐 当前施工蓝图 | 记录决策基线、覆盖面、DAG 和验收映射 |
-| `planRevision` | 📝 蓝图修订版 | 同一 outcome 的补漏和重规划，不是新项目 |
-| Gate 收据 | 🧾 材料/验收证明 | 输入、环境和目标身份相同才可复用；放项目 `.work` |
-| 正式设计 | 📚 建成后的长期图纸 | 保存当前长期合同，不保存本次流水和 pass/fail |
-
-```mermaid
-flowchart TB
-    O["🎯 一个 outcome"]
-    G["🧷 可选：一个 goal"]
-    T["🧵 一个主任务 / 稳定机器 task ID"]
-    P1["📐 plan revision 1"]
-    P2["📐 plan revision 2<br/>同一结果补漏"]
-    E1[("🧾 证据 A")]
-    E2[("🧾 证据 B")]
-    D["📚 长期合同收敛"]
-
-    O --> G --> T
-    O --> T
-    T --> P1 --> P2
-    P2 --> E1
-    P2 --> E2
-    E1 --> D
-    E2 --> D
-
-    N1["🚫 Gate 重跑不是新 outcome"]
-    N2["🚫 每个小缺陷不新建 plan/goal/task"]
-    N1 -.-> T
-    N2 -.-> P2
-
-    classDef core fill:#fff4cc,stroke:#9a6b00,color:#3d2b00,stroke-width:3px;
-    classDef state fill:#dcecff,stroke:#2b6cb0,color:#17365d;
-    classDef plan fill:#e9e4ff,stroke:#7357c2,color:#2f2850;
-    classDef evidence fill:#dcf7e8,stroke:#21865a,color:#123f2e;
-    classDef no fill:#ffe0e0,stroke:#c23b3b,color:#641f1f;
-    class O core;
-    class G,T state;
-    class P1,P2 plan;
-    class E1,E2,D evidence;
-    class N1,N2 no;
-```
-
-## 8. 日常应该打开哪个工作区
-
-| 你要做的事 | 推荐打开位置 | 原因 |
-| --- | --- | --- |
-| 聚算平台跨服务设计、实施或生产工作 | `jusuan-installer` 平台总控仓库 | 它拥有平台 AGENTS、正式设计、机器 Gate、生产合同和子工程清单 |
-| 聚算某个边界清楚的局部代码任务 | 可直接打开目标子工程；跨服务时仍回总控仓库 | 减少上下文，但不能丢失跨服务权威 |
-| 新的、完全独立的平台 | 为该平台建立自己的总控仓库 | 不把聚算事实升维成所有平台的事实 |
-| 单一小型独立仓库 | 直接打开该仓库 | 它自己维护最小项目覆盖层即可 |
-| 修改通用工作方法、角色或 Codex 投影 | `team-os` | 这里才是跨项目 workflow 源 |
-
-Team OS 只登记**平台总控仓库**，不逐个登记平台中的几十个服务。聚算平台的服务仓库仍由 `<jusuan-installer>/.agents/config/workspaces.json` 统一维护；Team OS 的适配器只指向这个权威入口，见 [`../../projects/adapters/jusuan-installer.yaml`](../../projects/adapters/jusuan-installer.yaml)。
-
-`cwd` 是项目指令发现和命令启动锚点，不是权限围墙。Agent 在 Codex 权限、用户授权和任务合同允许时可以访问其他目录；但它仍必须遵守本次明确的写集合，不能因为“能访问”就扩大修改范围。
-
-## 9. 可直接复制的日常说法
-
-### 9.1 先讨论，不实施
-
-> 先只和我讨论分析这个想法，不修改文件。请从用户价值、业务链、失败面和少量方案取舍帮我把结论想清楚。
-
-### 9.2 只设计和规划一个新模块
-
-> 基于刚才的结论设计并规划这个模块。请读取项目权威，只维护必要的正式设计和一份覆盖型实施规划；先不要开始实现。
-
-### 9.3 讨论满意后直接推进
-
-> 按以上结论开始推进。由当前任务的 owner 模型读取项目 `AGENTS.md`、实施规范和会改变路径的机器入口，先确认结果合同和必要的最小计划，再端到端完成实现、适用 Gate 和真实入口验收。不要预先生成完整影响地图或重复已知事实；默认由当前任务完成，只有独有事实、互斥写集合或高风险独立验证成立时才创建独立任务。
-
-如果确有独立证据或高风险验证，再补一句：
-
-> 请创建侧栏可见、拥有独立 Session、可单独验收的独立任务；声明目标、非目标、输入、写集合、验证、预算和停止条件，并返回模型/harness 身份、证据和剩余风险。
-
-### 9.4 只排查原因
-
-> 只读排查这个现象。先给出精确症状和可证伪假设，用最小反馈环定位根因；不要修改实现。
-
-### 9.5 定位并修复一个问题
-
-> 定位并整改这个问题。在同一个诊断闭环中完成复现、根因保护、最小修复和目标验证；不要把相邻问题扩大进来。
-
-### 9.6 继续同一个模块
-
-> 继续推进原 outcome。把这批遗漏合并回原任务和原实施规划 revision，本地集中闭合后再形成一个稳定候选，不为每个小问题新建 goal 或顶层任务。
-
-### 9.7 查看状态
-
-> 汇报当前 outcome、所处状态、首个判别事实、已闭合证据、剩余风险、下一步和停止条件。
-
-### 9.8 提交与推送
-
-> 仅对当前已稳定且属于本任务的变更做范围复核，运行适用末端检查，然后分别提交并推送；不要借提交任务重新设计或带入无关改动。
-
-提交、远端写、生产写、破坏性操作和数据删除不会因为“开始推进”而自动获得授权，仍须在当前请求中明确覆盖。
-
-### 9.9 UI 设计、还原与局部修正
-
-不用逐项指挥设计师、前端和测试，也不必照抄话术：
-
-| 你想做什么 | 可以怎么说 | 应看到的交付 |
-| --- | --- | --- |
-| 探索新页面风格 | “先设计这个工作台，沿用现有组件，给我看能落地的方向，先不实施。” | 代表屏、关键状态和实现约束，不擅自部署 |
-| 按满意设计实施 | “按这个稿实现，不重新设计，完成后把实际页面和目标对照。” | 已知差异、实际渲染、交互和适用验收 |
-| 修小问题 | “这个表格窄屏文字被截断，定位修复并检查实际效果。” | 局部修复与渲染证据，不重做整套视觉方案 |
-| 交付用户前台或运营后台功能 | “把已讨论的资源申请流程做完整，沿用现有风格，补齐权限、等待、失败与重新进入后的结果。” | 一个真实业务切片，页面/API/状态一致，不停在静态样稿 |
-| 改善分析页 | “先明确运营人员要判断什么，再优化图表和操作，不新增业务指标。” | 有口径和比较依据的可视化，空值/异常/窄屏可读，不堆装饰图 |
-| 没有参考但想改善体验 | “这个页面显得杂乱，请先分析用户任务和信息层级，提出能用现有组件落地的方向，先别改代码。” | 问题依据、设计方向和必要代表屏，不要求你先填完整设计简报 |
-| 按参考画风改造 | “借鉴这张图的排版和质感，保留当前业务、导航和 API；先说明借鉴哪些、不借鉴哪些。” | 参考到既有 token/组件的映射，不把借鉴误当逐像素复制 |
-| 扩展一组页面 | “沿用已认可的样板完成其余页面，按业务切片推进，不给每页重新发明风格。” | 共用设计语言、必要变体及各切片的适用验收，不机械铺满静态页 |
-| 核对交付质量 | “对照批准稿检查实际页面，同时验证主操作、失败恢复和刷新后的结果；先汇报问题，暂不修改。” | 有截图/行为依据的问题清单，不用编译成功或主观评分代替验收 |
-
-核心是“先知道目标长什么样，再看代码实际画出了什么”。设计图不是页面，页面截图不是业务成功；详细方法只维护在 [UI 设计与前端交付工作流](../../workflows/ui-design-frontend.md)。
-
-可以把它理解为：**你说明谁要完成什么 → Agent 将讨论变成设计基线 → 用代表屏确定可落地风格 → 连通页面与后端 → 看真实页面并验证业务结果 → 沿用样板扩展**。这是同一负责人推进的工作顺序，不是要求你逐关发指令或手动分配职业。已有设计直接复用，修小问题跳过重新设计。
-
-你不需要掌握专业尺寸、组件库或固定话术。有喜欢的参考就说明借鉴画风还是忠实还原；没有参考也可以让 Agent 先提出方向。前台不一定是营销站，后台不应该只追求花哨；专业感来自任务顺畅、信息秩序、完整状态和一致细节。规则完善不等于后续页面已经验收，仍要看实际交付证据。
-
-### 9.10 已有会话重读最新 UI 工作流
-
-不用为了规则更新放弃当前任务上下文。向原会话发送一次明确的重读请求，并要求它实际读取磁盘文件；仅回复“会遵守最新规范”不是读取证明。可直接说：
-
-```text
-继续当前任务前，请使用 team-os-ui，并从磁盘重新读取
-~/.codex/skills/team-os-ui/SKILL.md，按其中路由读取
-references/ui-design-frontend.md 与本任务相关的章节。
-同时重读当前项目 AGENTS.md 和适用的项目 UI 规范；
-聚算任务还需读取 jusuan-installer 中 console-ui 的 SKILL.md
-及 references/ui-delivery.md。
-
-保留原需求、已批准设计、现有修改、验收证据和授权边界。
-若旧理解与当前权威冲突，指出冲突并按指令优先级处理，
-不要自行推翻已批准的产品决策，不全量重做计划或重跑验证。
-先简短列出实际读取的文件、本任务适用的新要求和剩余验收，
-然后在原授权内继续；若此前只要求设计或分析，仍不实施。
-```
-
-上下文明确时也可以简说：“**重读最新 team-os-ui 和项目 UI 适配，按新规范继续当前任务，保留已批准设计和现有进度。**”措辞大意一致即可；文件找不到时再提供本机绝对路径，不猜测仓库位置。
-
-需要区分两件事：
-
-- **文件同步**：Team OS 的安装检查确认源文件与受管理的本机 Skill 投影一致，见第 2 节。若漂移，先区分仓库更新与本地自定义改动，不能直接覆盖用户修改。仅修改本使用手册不需要重新安装 Skill。
-- **会话读取**：让当前会话读取最新正文，并落实到当前任务。官方说明 Codex 会自动检测 Skill 变化，未出现时可重启；但检测到文件变化不等于旧对话中的理解已经更新。因此优先显式重读，不把重启当作每次必需步骤。[官方 Skills 说明](https://developers.openai.com/codex/skills)
-
-如果 Skill 未出现在可用列表，仍可提供 Team OS 中 `skills/team-os-ui/SKILL.md` 和 `workflows/ui-design-frontend.md` 的实际路径，要求直接读取适用指引；这是文件读取兜底，不应宣称 Skill 自动发现已经修复。其它独立任务若仍在运行，需要分别收到与其工作有关的规则更新，主会话重读不会自动更新所有任务。
-
-## 10. Skill 是自动触发，还是需要主动点名
-
-两种方式都支持：**通常靠意图自动命中；关键任务可显式点名以消除歧义。**
-
-| Skill 类型 | 平时怎么触发 | 何时建议显式点名 |
-| --- | --- | --- |
-| Team OS 规划叠加层 | 说“按结论开始推进”、复杂模块、跨仓结果、需要 DAG/协同时，应命中 `team-os-plan` | 关键大模块可说“使用 `$team-os-plan` 收敛后推进” |
-| Team OS 复盘 | 明显返工、意外失败、首次使用新拓扑，或用户要求复盘时命中 | 想把一次经历转成可复用改进时说“使用 `$team-os-retrospective` 复盘” |
-| Team OS UI 叠加层 | UI 新设计、还原和可见前端改动时匹配 `team-os-ui` | 希望明确要求设计基线与视觉对照时可点名；不是必须话术 |
-| 项目流程所有者 | 根据“只读诊断 / 设计 / 实施 / 评审 / 提交”等意图选择一个 | 请求同时含多种动词、边界可能混淆时可点名 |
-| 领域叠加层 | UI、代码结构、离线资产等真实领域命中时加载 | 有特别高的领域风险或验收要求时 |
-| 执行器 | 由流程 owner 按机器计划调用 Gate、smoke、refresh、生产事实 | 日常不需要用户逐个点名 |
-
-最重要的不是记住所有 Skill 名称，而是把意图说清。一个任务只应有一个流程所有者；领域 Skill 只补约束，执行器只执行已经确定的目标。
-
-## 11. 聚算平台的机器状态怎么看
-
-以下命令只属于 `jusuan-installer` 项目覆盖层，Team OS 不复制它们的实现合同：
-
-| 命令 | 用途 |
-| --- | --- |
-| `./juspctl plan ...` | 根据 outcome、changed paths、lane 和目标生成机器计划 |
-| `./juspctl tasks` | 查看当前项目任务列表 |
-| `./juspctl show --task <task-id>` | 查看一个结果的计划 revision 和状态 |
-| `./juspctl close ...` | 只有用户结果、适用证据和运行事实闭合后才关闭 |
-| `./juspctl health` | 只读查看任务、Gate 收据和重复执行浪费，不运行测试也不改状态 |
-
-通常由当前 Codex 结果负责人代为运行。完整参数和边界只读 `<jusuan-installer>/docs/平台开发联调部署规范.md`，不要从本手册猜测生产或远端操作。
-
-## 12. 恢复、中断与新开任务
-
-| 情况 | 推荐动作 |
-| --- | --- |
-| 同一结果的连续推进 | 继续原 Codex 任务，保留 Session 连续性 |
-| 同一结果发现一批遗漏 | 回原规划 revision 集中闭合 |
-| 原任务上下文已非常混乱 | 用紧凑交接包新开任务，但沿用同一 outcome 和机器 task ID |
-| 真正无关、可独立验收的新结果 | 新建 Codex 任务 |
-| 需要互补事实或独立验证 | 新建有界独立任务；只共享结果卡和必要权威 |
-| 等待用户决定、外部事实或新授权 | 进入 `waiting`，写明等待对象和恢复条件 |
-
-已有任务不会自动吸收新版本的用户级工作流。继续前发送一次重读请求：
-
-```text
-继续当前任务前，请从磁盘重读最新的用户级 AGENTS.md、项目 AGENTS.md、相关 Skill 和本任务 .work 状态。保留原 outcome、授权、变更和有效收据；不要重新启动整套规划或重复已通过的验证。由当前 owner 模型按最短可验证路径继续，只汇报实际读取文件、剩余验收和下一步；如模型、Provider 或工具能力发生变化，请显式披露。
-```
-
-交接包只传：目标与当前状态、已作决策及理由、变更路径、验证与证据引用、剩余风险、下一步和停止条件。不要复制完整 Transcript。
-
-```mermaid
-stateDiagram-v2
-    [*] --> intake: 收到目标
-    intake --> ready: 边界/授权/验收齐全
-    ready --> doing: 开始分析或实施
-    doing --> verifying: 候选稳定
-    verifying --> done: 结果和证据闭合
-    doing --> waiting: 等用户/外部事实/授权
-    verifying --> doing: 验收证伪，原任务修复
-    waiting --> doing: 恢复条件满足
-    done --> [*]
-```
-
-## 13. 常见疑问
-
-### 更换模型后，日常说法要变吗？
-
-不用背固定口令，但建议明确结果、成功标准、非目标和授权，要求最短可验证路径，并规定只有独有证据或高风险验证才启用独立任务。明确 bug 可直接“定位并修复”；大模块仍先讨论，再“按结论推进”。
-
-普通测试失败会返回同一负责人修复，而不是让你重复授权。确实需要新的业务决定、写权限或安全处理才暂停对应分支；方法到点无新事实则换方法。升级模型不会自动增加 Agent 数量、提升全部模型档位或改成全量回归。
-
-### 怎样知道效率和质量是否真的提高？
-
-不用逐条记账。聚算项目用 `juspctl show` 查看单任务的真实执行/复用和证据关联，`juspctl health` 查看整体状态、收据与指标覆盖。缺失数据会显示未知，不会算作零；通过次数不等于业务质量。你仍用实际完成效果、遗漏与返工来纠偏，只有已知的质量事实才写入原任务关闭摘要。指标含义由项目规范维护，Team OS 不另建数据库。
-
-### 为什么不默认多 Agent？
-
-多 Agent 会增加上下文交接、等待、冲突和错误放大。只有独立证据、互斥写集合或高风险验证真实存在时，协作才可能比单任务更快、更可靠。
-
-### 角色是不是等于一个固定人物？
-
-不是。角色是责任合同，能力是前端、后端、UX、数据、安全等专业证据，人物只是可选展示，Agent 实例才是本次真实任务/Session。小任务可以由同一主任务顺序切换能力，不必创建多个“员工”。详见 [`../../roles/README.md`](../../roles/README.md)。
-
-### Goal 建了以后是否就代表规划完整？
-
-不代表。Goal 只保证长任务持续推进；完整性来自覆盖规划、项目权威、适用 Gate 和真实入口事实。
-
-### Skill 没有按预期命中怎么办？
-
-先确认请求意图是否明确，再检查用户级投影：
+示例：
 
 ```bash
-cd <team-os-root>
-python3 scripts/install_codex.py --check
+python3 <skill-dir>/scripts/project_bridge.py bind \
+  --project-root <project-root> \
+  --checkout-root <actual-checkout> \
+  --task <task-id> \
+  --owner <plan-result-owner> \
+  --model gpt-6-astra
+
+python3 <skill-dir>/scripts/project_bridge.py inspect \
+  --project-root <project-root> \
+  --task <task-id> \
+  --checkout-root <actual-checkout> \
+  --require-binding
 ```
 
-关键任务可以直接显式点名 `$team-os-plan`、项目流程 Skill 或验收目标。更新投影后建议从新 Codex 任务验证自动加载。
+计划指纹变化会使旧绑定失效；重新规划沿用原 task ID。绑定只证明计划与元数据关联，不证明命令已执行、输入未变、沙箱已启用或生产已授权。适用 Gate、preflight、freeze、执行、真实入口验证和 close 仍由项目负责。
 
-### 证据为什么有时能复用、有时必须重跑？
+没有项目 Runner 时，使用项目已有的构建、测试和 `.work` 入口；不要假造 `juspctl`，也不要在 Codex 中创建第二套状态机。
 
-只有命令、输入、依赖、环境和动态目标身份都未变化时，成功收据才可复用。源码、构建输入、目标代次或有效时间窗变化时必须重取证据。
+## 6. Astra 与 Sol
 
-### Team OS 会不会让项目离开个人环境后无法运行？
+两种模型都可以端到端担任 Owner，模型名称不会自动创建角色、任务或权限。
 
-不会。项目必须在未安装个人 Team OS、未运行 Munder 时仍能独立、安全执行。Team OS 是用户级协作增强，不是项目运行依赖。
+| 模型 | 使用重点 |
+| --- | --- |
+| GPT-6 Astra | 高歧义、跨边界设计、复杂研究、集成和综合；提示应明确结果、约束、非目标和完成证据 |
+| GPT-6 Sol | 边界清晰的复杂编码、定位修复和纵向交付；提示应给出具体接口、失败案例和可执行验收 |
 
-## 14. 本手册的维护合同
+保留用户选择的模型和推理档位，不静默切换 Provider 或 fallback。配置值是 configured，不等于本次 resolved model；无法观测的字段记为未知。切换模型时记录旧模型、新模型、作用域、fallback、resolved model 和恢复方式。
 
-1. 本手册只解释日常入口、心智模型和权威路由；不复制项目 Gate、生产命令或业务正文。
-2. 用户操作流程、术语、Codex 投影入口或关键路由改变时更新本手册。
-3. 动态 pass/fail、真实 Session ID、日志、密钥和一次性收据不得写入本手册。
-4. Mermaid 图与正文表达同一语义；图不能引入正文没有的授权或自动化承诺。
-5. 若以后制作可交互 HTML“系统说明书”，它必须从本手册和 Team OS 权威合同生成或引用，只作为可视化投影，不成为第二份手工维护的权威。
+Astra/Sol 的选择是运行时策略，不写入项目长期事实，也不在项目 Skill 中固定“规划模型 → 执行模型 → 审批模型”的队列。实际可用的模型和推理档位以当前 Codex 主机为准。模型定位和提示设计参考 [GPT-6 模型与提示指导](https://developers.openai.com/api/docs/guides/latest-model) 与 [Astra Skills 与 Prompt 指导](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra)。
 
-进一步理解原理时按需阅读：
+## 7. 协作、任务和隔离
 
-- [`../../workflows/conversational-orchestration.md`](../../workflows/conversational-orchestration.md)：对话如何编译成结果合同和运行时协作；
-- [`../../organization/operating-model.md`](../../organization/operating-model.md)：为什么采用单一负责人、独立首轮、WIP 和短复盘；
-- [`../../workflows/adaptive-collaboration.md`](../../workflows/adaptive-collaboration.md)：五种最小协作拓扑；
-- [`../../workflows/harness-contract.md`](../../workflows/harness-contract.md)：Harness 能力、Goal 映射、运行收据和可删除性；
-- [`../../codex/README.md`](../../codex/README.md)：哪些内容会安装到 Codex；
-- [`../../projects/README.md`](../../projects/README.md)：Team OS 与各平台总控仓库如何分工。
+默认 solo。只有以下情况才增加协作：
+
+- 子任务产出独有证据；
+- 写集合互斥且可独立验收；
+- 高风险候选需要独立只读审阅。
+
+Codex 应优先使用当前任务允许的可检查协作工具。用户明确要求新的独立任务时，才创建侧栏任务；需要真实代码隔离时才创建 worktree。worktree 只隔离代码，不隔离数据库、网络、生产资源或凭据。
+
+派工包至少包含目标、输入、写集合、排除项、接口、验收、预算和停止条件。Owner 最后检查真实 diff、项目收据和集成结果。不能用“任务已创建”“子任务已完成”代替结果证据。
+
+Codex Goal 只在用户明确要求持续结果时使用；automation 只在用户明确要求调度、提醒或监控时使用。两者都不能替代项目 Runner 或保证 App 退出后本地命令继续运行。
+
+## 8. 浏览器和 UI 证据
+
+浏览器只提供事实，项目 UI Skill 和机器计划仍拥有验收边界：
+
+- 已知、可重复步骤优先项目 Playwright 或脚本；
+- 登录态、实时页面或探索使用当前运行时提供的浏览器/Computer Use；
+- OMP 路线遵守 OMP Browser Eval；Codex 路线遵守 `team-os-codex/references/browser.md`；
+- Network、Console 和性能只在当前运行时实际提供相应工具时采集；
+- DOM、行为、业务结果和截图分别验证，截图不能替代 API 或数据事实；
+- 收据写入项目 `.work/tasks/<task>/evidence/browser/<scenario>/`，只保存脱敏信息；
+- 无浏览器条件时明确记录“未验”，不能用 build 或单测冒充真实入口验收。
+
+## 9. 恢复与维护
+
+长任务恢复顺序：
+
+1. 查看项目 `status`、活动进程、最后阶段和 `.work` 收据；
+2. 检查计划指纹和 Codex binding；
+3. 核对剩余验收、授权范围和实际 checkout；
+4. 按项目规则使用 `tail`、`resume` 或其他原生入口；
+5. 只对当前仍然有效的阶段继续工作。
+
+旧任务不会因为 Team OS 源文件更新而自动获得新的上下文。需要新规则时，先重新读取适用 Skill 或开启新的 Codex 任务；长期事实仍以项目 AGENTS、正式设计、机器计划和 `.work` 为准。
+
+维护时遵守以下契约：
+
+- Team OS 源文件是跨运行时方法的唯一维护位置；
+- `codex/AGENTS.md` 和 `skills/team-os-codex` 是 Codex 投影源；
+- OMP 角色、Profile 和模型目录继续由 OMP 路线维护；
+- 项目 AGENTS、项目 Skill、正式设计和机器入口继续由项目维护；
+- 不把某次会话的模型、token、临时 ID、密码或 pass/fail 写入长期文档；
+- 修改后运行 `install_codex.py --check`、相关 Skill 校验和项目适用门禁。
+
+如果 Team OS 与项目规则看起来冲突，优先采用项目 AGENTS、正式设计和机器入口；如果 Codex 运行能力与模型/API 文档不一致，以当前 Codex 工具实际返回的能力为准，并在结果中说明未验证项。

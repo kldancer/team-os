@@ -15,6 +15,7 @@ machine:
   gates: .agents/config/gates.json
 evidence:
   taskStore: .work/tasks
+  codexRuntimeAdapter: ~/.codex/skills/team-os-codex/scripts/project_bridge.py
   gateReceipts: .work/gates
 constraints:
   copyAuthorityDocuments: false
