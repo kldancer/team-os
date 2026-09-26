@@ -27,6 +27,9 @@ COMMON_FILES = {
     "skills/team-os-plan/references/request-compiler.md": ROOT
     / "workflows"
     / "request-compiler.md",
+    "skills/team-os-plan/references/pre-deploy-verification.md": ROOT
+    / "workflows"
+    / "pre-deploy-verification.md",
     "skills/team-os-plan/scripts/compile_request.py": ROOT / "scripts" / "compile_request.py",
     "skills/team-os-retrospective/SKILL.md": ROOT
     / "skills/team-os-retrospective/SKILL.md",
