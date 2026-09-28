@@ -10,12 +10,18 @@ authority:
   designGovernance: docs/设计文档管理规范.md
   designMap: docs/正式设计文档/00-系统设计地图.md
   designGraph: docs/正式设计文档/design-graph.json
+  environmentIndex: docs/生产环境建设/README.md
+  environmentMap: docs/生产环境建设/00-环境地图.md
+  environmentGraph: docs/生产环境建设/environment-graph.json
   production: docs/正式设计文档/25-生产变更兼容性发布与真实入口验收设计.md
 machine:
   planner: ./juspctl
   designQuery: python3 .agents/scripts/design_catalog.py query
   designImpact: python3 .agents/scripts/design_catalog.py impact
   designGate: bash scripts/validate/docs/verify_ai_doc_system_contract.sh
+  environmentQuery: python3 .agents/scripts/environment_catalog.py query
+  environmentImpact: python3 .agents/scripts/environment_catalog.py impact
+  environmentGate: bash scripts/validate/docs/verify_environment_doc_contract.sh
   workspaces: .agents/config/workspaces.json
   gates: .agents/config/gates.json
 evidence:
