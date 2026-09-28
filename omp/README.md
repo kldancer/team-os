@@ -27,16 +27,17 @@ omp --profile team-os
 1. 在 OMP 中描述用户结果和范围。
 2. owner 读取项目 `AGENTS.md`、正式设计和目标片段。
 3. 小任务直接完成；需要独立证据或互斥写集合时才派 `@worker`；高风险时才派 `@reviewer`。
-4. 构建、部署和长验证交给项目执行引擎，实时输出命令、阶段和日志路径。
+4. `plan` 显式绑定稳定 task ID；构建、freeze、部署和长验证交给项目执行引擎，实时输出命令、attempt、阶段和日志路径。
 5. 使用项目命令恢复或查看任务：
 
 ```bash
 python3 .agents/scripts/juspctl.py status --task <task-id>
 python3 .agents/scripts/juspctl.py tail --task <task-id> --follow
 python3 .agents/scripts/juspctl.py resume --task <task-id>
+python3 .agents/scripts/juspctl.py resume --task <task-id> --retry --confirm-remote-write
 ```
 
-若项目没有 `resume` 子命令，以项目现有的 state/receipt 入口为准。OMP 不保存生产任务的唯一状态。
+`resume` 默认只读；仅 failed/interrupted 的当前计划允许显式 `--retry`，Runner 新建 attempt 并复用未漂移的 Gate 与完整成功 stage。若项目没有 `resume` 子命令，以项目现有的 state/receipt 入口为准。OMP 不保存生产任务的唯一状态。
 
 ## 边界
 

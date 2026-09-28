@@ -45,8 +45,8 @@ UI、视觉、数据库和 SRE 是能力标签。它们不会自动创建额外 
 以 `jusuan-installer` 为例：
 
 ```bash
-# 创建项目计划
-python3 .agents/scripts/juspctl.py plan ...
+# 创建项目计划；同一 outcome 始终复用这个 task ID
+python3 .agents/scripts/juspctl.py plan --task <task-id> ...
 
 # 独立于当前会话运行
 python3 .agents/scripts/juspctl.py start \
@@ -57,13 +57,14 @@ python3 .agents/scripts/juspctl.py start \
 python3 .agents/scripts/juspctl.py status --task <task-id>
 python3 .agents/scripts/juspctl.py tail --task <task-id> --follow
 python3 .agents/scripts/juspctl.py resume --task <task-id>
+python3 .agents/scripts/juspctl.py resume --task <task-id> --retry --confirm-remote-write
 ```
 
-每个任务会固定自己的 delivery manifest 快照、候选 digest、阶段日志和状态文件。并发任务不会写同一个公共可变 manifest。`resume` 只读展示阶段恢复点；失败阶段的重试须重新确认授权，避免重放已成功的生产 rollout。
+每个任务会固定自己的 delivery manifest 快照、候选 digest、计划 revision、Runner attempt、阶段日志和状态文件。`start` 先检查输入漂移、执行缺失 Gate，并在适用时自动 freeze；并发任务不会写同一个公共可变 manifest。`resume` 默认只读，显式 `--retry` 才在原 task 下新建 attempt，失败阶段重试仍须重新确认授权，完整成功 stage 不重放。
 
 ## 5. 生产刷新路径
 
-单组件、镜像已准备好的刷新走最短路径：
+单组件、镜像已准备好的刷新走最短路径；native-schema profile 在无 migration/Chart/values 风险时只做 schema observe，不因“服务拥有 schema”自动退出快速路径：
 
 ```text
 目标 preflight → 任务级候选/镜像 digest → 单组件 rollout → 原入口最小 smoke
@@ -80,11 +81,15 @@ python3 .agents/scripts/juspctl.py resume --task <task-id>
 | “排查/只分析 <问题>，先别改” | `diagnose`（只读） | 可证伪循环取证，不推导修复授权 |
 | “定位并修复 <症状>” | `deliver-change` 判定车道 → `diagnose` 同环 | 已有症状的定位修复由 diagnose 单流程持有；先最小复现再改根因 |
 | “设计/规划 <目标>，比较两个方案” | `design` | 只收敛设计或实施规划，不写实现 |
+| “先按正式设计定位 <需求/症状>，再分析” | 项目 design catalog | 先取唯一 owner、实现根、业务链和有界 context pack；不通读全仓 |
+| “从 <workspace:path> 反查设计和影响” | 项目 path query / contract impact | 目标已知直接读；修改稳定合同前展开影响面 |
 | “按结论推进 / 实现 / 修复 <需求>” | `deliver-change` | 最小纵向切片 + 适用 Gate；UI 只是能力标签，不自动派生视觉角色 |
 | “只验证 <场景或入口>” | `guard` | 只跑定向门禁/healthcheck/smoke，不升级为全量 |
 | “审一下 <commit/分支/工作区>” | owner 分类 → `review` | 只读挑战，输出带路径行号的可执行 findings |
 | “提交并推送这批变更” | owner 分类 → `ship-changes` | 唯一提交入口；仍需你当次明确授权 |
 | “继续上次任务 / 按现有结论继续” | 恢复原 owner | 读 `.work` 的任务状态、有效收据和当前规范，沿用原 taskId，不重复规划 |
+
+支持 typed design catalog 的项目中，可补一句“优先扩展已有 owner；只有独立 owner、失败责任或验证边界成立时才新增文档”。项目专属命令、合同 ID、预算和生成图不进入 Team OS 手册。
 
 重新分析之前得出的问题根因结论和设计思路解决方案，需要描述的形象而准确，不要堆积专有名词。
 
@@ -94,7 +99,7 @@ python3 .agents/scripts/juspctl.py resume --task <task-id>
 | --- | --- |
 | “把 <组件> 的修复刷新到生产” | `deliver-change`；单组件 image-only 时走 `juspctl fast-deploy`（门禁→构建→rollout→代次绑定 smoke→失败自动回滚），命中迁移、多组件或高风险路径自动回退完整 `plan`+`apply` |
 | “线上故障，先把 <表> 的 <数据> 改成 <值> 止血” | break-glass 数据热修（项目发版规范 break-glass 节）：这句话本身就是授权，编译会再确认一次目标与意图；事务化幂等 SQL + 前后不变量审计；止血后必须另建任务补正式修复 |
-| “看下任务进度 / 把日志给我” | `juspctl status/tail --task <id>`，换会话依然有效 |
+| “看下任务进度 / 把日志给我” | `juspctl status/tail/resume --task <id>`，换会话依然有效；重试仍沿用该 ID |
 | “把这个计划放后台跑” | `juspctl start`；工作台退出不丢任务 |
 
 反模式（说了也不会照做）：

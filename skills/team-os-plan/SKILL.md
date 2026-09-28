@@ -21,6 +21,8 @@ description: 用户说“按结论开始推进”，或复杂、跨仓任务需�
 - 目标时间、hard stop 和失败后的可证伪切换条件；
 - 一个结果负责人。
 
+项目适配器或权威文档若声明机器设计/合同 catalog，需求、症状或代码路径归属不明时先查询唯一 owner 和有界 context pack；稳定合同修改前再做 impact。catalog 只缩小读取范围，不替代项目流程、业务判断或授权，也不把项目图谱复制进 Team OS。
+
 不要要求用户重新填写已经在对话里给出的信息。普通 Gate、重试、波次或专家输入是同一结果的事件/子任务，不新建顶层结果。
 
 Goal 只在用户明确要求时创建，并且一个 outcome 只对应一个 durable outcome；它用于长任务持续推进，不证明规划完整，也不因 plan revision、返工或刷新重复创建。Codex 原生 goal、OMP todo/checkpoint 或 Pi 扩展 goal 都只是运行时投影；需要跨 Session 或跨 harness 恢复时，以项目既有机器状态或 `.work` 中的 outcome 和收据为准。
