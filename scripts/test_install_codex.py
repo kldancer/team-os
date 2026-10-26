@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -186,3 +187,69 @@ class CodexFactoryProjectionTest(unittest.TestCase):
             personal.write_text("keep\n", encoding="utf-8")
             self.assertEqual(self.run_runtime(home).returncode, 0)
             self.assertEqual(personal.read_text(encoding="utf-8"), "keep\n")
+
+
+class ClaudeProjectionTest(unittest.TestCase):
+    def run_runtime(self, home: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(RUNTIME_SCRIPT), "claude", "--home", str(home), *extra],
+            text=True, capture_output=True, check=False,
+        )
+
+    def test_claude_projection_uses_claude_context_and_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "claude"
+            result = self.run_runtime(home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Team OS · Claude", (home / "CLAUDE.md").read_text())
+            self.assertFalse((home / "AGENTS.md").exists())
+            self.assertTrue((home / "skills/team-os-claude/SKILL.md").is_file())
+            self.assertFalse((home / "skills/team-os-codex").exists())
+            self.assertIn("Claude 浏览器取证", (home / "skills/team-os-browser-verify/SKILL.md").read_text())
+            self.assertIn(
+                "../team-os-claude/references/browser.md",
+                (home / "skills/team-os-ui/SKILL.md").read_text(),
+            )
+            self.assertEqual(self.run_runtime(home, "--check").returncode, 0)
+
+    def test_claude_projection_keeps_user_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "claude"
+            settings = home / "settings.json"
+            settings.parent.mkdir(parents=True)
+            settings.write_text("{}\n", encoding="utf-8")
+            self.assertEqual(self.run_runtime(home).returncode, 0)
+            self.assertEqual(settings.read_text(encoding="utf-8"), "{}\n")
+
+    def test_unmanaged_claude_context_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "claude"
+            home.mkdir()
+            (home / "CLAUDE.md").write_text("mine\n", encoding="utf-8")
+            result = self.run_runtime(home)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("refusing to overwrite unmanaged file", result.stderr)
+
+
+class ProjectionLintTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        spec = importlib.util.spec_from_file_location("install_runtime", RUNTIME_SCRIPT)
+        assert spec and spec.loader
+        cls.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.module)
+
+    def test_every_runtime_projection_passes_lint(self) -> None:
+        for runtime in self.module.RUNTIMES:
+            desired = self.module.desired_files(runtime)
+            self.assertEqual(self.module.lint_projection(runtime, desired), [], runtime)
+
+    def test_lint_rejects_unresolved_and_foreign_links(self) -> None:
+        desired = {
+            "skills/a/SKILL.md": b"[x](../../workflows/missing.md) [ok](../b/SKILL.md) [web](https://e.x)",
+            "skills/b/SKILL.md": b"see ../team-os-codex/references/browser.md",
+        }
+        errors = self.module.lint_projection("claude", desired)
+        self.assertTrue(any("unresolved link" in error for error in errors), errors)
+        self.assertTrue(any("foreign adapter reference" in error for error in errors), errors)
+        self.assertEqual(len(errors), 2, errors)

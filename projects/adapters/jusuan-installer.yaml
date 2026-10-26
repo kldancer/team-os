@@ -15,7 +15,9 @@ authority:
   environmentGraph: docs/生产环境建设/environment-graph.json
   production: docs/正式设计文档/25-生产变更兼容性发布与真实入口验收设计.md
 machine:
-  planner: ./juspctl
+  validationPlan: python3 .agents/scripts/workflow_plan.py
+  constraintQuery: python3 .agents/scripts/constraints_query.py
+  legacyRunner: scripts/legacy/juspctl
   designQuery: python3 .agents/scripts/design_catalog.py query
   designImpact: python3 .agents/scripts/design_catalog.py impact
   designGate: bash scripts/validate/docs/verify_ai_doc_system_contract.sh
@@ -27,7 +29,9 @@ machine:
 evidence:
   taskStore: .work/tasks
   codexRuntimeAdapter: ~/.codex/skills/team-os-codex/scripts/project_bridge.py
-  gateReceipts: .work/gates
+  claudeRuntimeAdapter: ~/.claude/skills/team-os-claude
+  claudeProjectEntry: CLAUDE.md
+  legacyGateReceipts: .work/gates
 constraints:
   copyAuthorityDocuments: false
   # 只有用户在当前 harness Session 中明确触发“按结论开始推进”后，

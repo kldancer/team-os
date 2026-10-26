@@ -7,13 +7,17 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
+import re
 import tempfile
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_NAME = "team-os-install.json"
-RUNTIMES = ("codex", "pi", "omp")
+RUNTIMES = ("codex", "pi", "omp", "claude")
+# Claude Code reads CLAUDE.md as its user-level context file.
+CONTEXT_FILES = {"claude": "CLAUDE.md"}
 COMMON_FILES = {
     "skills/team-os-plan/SKILL.md": ROOT / "skills/team-os-plan/SKILL.md",
     "skills/team-os-plan/references/capabilities.yaml": ROOT / "roles/capabilities.yaml",
@@ -52,6 +56,16 @@ OMP_AGENT_FILES = {
 }
 
 
+BROWSER_ADAPTERS = {
+    "codex": ("Codex", "team-os-codex"),
+    "claude": ("Claude", "team-os-claude"),
+}
+
+
+MARKDOWN_LINK = re.compile(rb"\]\(([^)#\s]+)(#[^)\s]*)?\)")
+ADAPTER_SKILLS = {"codex": "team-os-codex", "claude": "team-os-claude"}
+
+
 class InstallError(ValueError):
     pass
 
@@ -59,13 +73,18 @@ class InstallError(ValueError):
 def runtime_files(runtime: str) -> dict[str, Path]:
     if runtime not in RUNTIMES:
         raise InstallError(f"unsupported runtime: {runtime}")
-    files = {"AGENTS.md": ROOT / runtime / "AGENTS.md", **COMMON_FILES}
+    files = {context_file(runtime): ROOT / runtime / "AGENTS.md", **COMMON_FILES}
     if runtime == "codex":
         base = ROOT / "skills/team-os-codex"
         for relative in ("SKILL.md", "references/execution.md", "references/models.md",
                          "references/collaboration.md", "references/browser.md",
                          "scripts/project_bridge.py"):
             files[f"skills/team-os-codex/{relative}"] = base / relative
+    if runtime == "claude":
+        base = ROOT / "skills/team-os-claude"
+        for relative in ("SKILL.md", "references/execution.md",
+                         "references/collaboration.md", "references/browser.md"):
+            files[f"skills/team-os-claude/{relative}"] = base / relative
     if runtime == "omp":
         files["RULES.md"] = ROOT / "omp/RULES.md"
         files.update(OMP_AGENT_FILES)
@@ -73,9 +92,15 @@ def runtime_files(runtime: str) -> dict[str, Path]:
     return files
 
 
+def context_file(runtime: str) -> str:
+    return CONTEXT_FILES.get(runtime, "AGENTS.md")
+
+
 def default_home(runtime: str, *, profile: str | None = None) -> Path:
     if runtime == "codex":
         return Path(os.environ.get("CODEX_HOME", "~/.codex"))
+    if runtime == "claude":
+        return Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude"))
     if runtime == "pi":
         return Path("~/.pi/agent")
     if runtime == "omp":
@@ -137,25 +162,78 @@ def desired_files(runtime: str) -> dict[str, bytes]:
     if missing:
         raise InstallError(f"missing projection source: {', '.join(missing)}")
     desired = {relative: source.read_bytes() for relative, source in sources.items()}
-    if runtime == "codex":
-        # Keep the shared Skill name, while selecting the actual Codex browser
+    if runtime in BROWSER_ADAPTERS:
+        # Keep the shared Skill name, while selecting the actual runtime browser
         # contract. OMP and Pi projections remain byte-for-byte unchanged.
+        label, adapter = BROWSER_ADAPTERS[runtime]
         desired["skills/team-os-browser-verify/SKILL.md"] = (
             "---\nname: team-os-browser-verify\n"
-            "description: 在 Codex 中验证真实网页入口并生成脱敏证据；不拥有业务交付或生产授权。\n"
-            "---\n\n# Codex 浏览器取证\n\n"
-            "按 [Codex 浏览器证据](../team-os-codex/references/browser.md) "
+            f"description: 在 {label} 中验证真实网页入口并生成脱敏证据；不拥有业务交付或生产授权。\n"
+            f"---\n\n# {label} 浏览器取证\n\n"
+            f"按 [{label} 浏览器证据](../{adapter}/references/browser.md) "
             "选择当前实际可用工具并验证真实入口。项目 UI 与 Gate 仍是权威。\n"
         ).encode()
         desired["skills/team-os-browser-verify/references/real-browser-verification.md"] = (
-            ROOT / "skills/team-os-codex/references/browser.md"
+            ROOT / "skills" / adapter / "references/browser.md"
         ).read_bytes()
         key = "skills/team-os-ui/SKILL.md"
         desired[key] = desired[key].replace(
             b"../../workflows/real-browser-verification.md",
-            b"../team-os-codex/references/browser.md",
+            f"../{adapter}/references/browser.md".encode(),
         )
+    return rewrite_links(sources, desired)
+
+
+def _external(link: str) -> bool:
+    return link.startswith(("http://", "https://", "mailto:", "/", "~")) or "://" in link
+
+
+def rewrite_links(sources: dict[str, Path], desired: dict[str, bytes]) -> dict[str, bytes]:
+    """Point relative Markdown links at their projected copies.
+
+    Source documents link within the Team OS repository layout; once projected,
+    the same file lives under a different relative path.  Links whose source
+    target is part of the projection are rewritten; the projection lint then
+    rejects anything still unresolved.
+    """
+    projected = {sources[relative].resolve(): relative for relative in desired}
+    for relative, content in desired.items():
+        if not relative.endswith(".md"):
+            continue
+        base = sources[relative].parent
+
+        def replace(match: re.Match[bytes]) -> bytes:
+            link = match.group(1).decode()
+            if _external(link):
+                return match.group(0)
+            target = projected.get((base / link).resolve())
+            if target is None:
+                return match.group(0)
+            new = posixpath.relpath(target, posixpath.dirname(relative) or ".")
+            return b"](" + new.encode() + (match.group(2) or b"") + b")"
+
+        desired[relative] = MARKDOWN_LINK.sub(replace, content)
     return desired
+
+
+def lint_projection(runtime: str, desired: dict[str, bytes]) -> list[str]:
+    """Reject unresolved relative links and references to another runtime's adapter."""
+    errors: list[str] = []
+    foreign = [name for owner, name in ADAPTER_SKILLS.items() if owner != runtime]
+    for relative, content in sorted(desired.items()):
+        if not relative.endswith(".md"):
+            continue
+        for match in MARKDOWN_LINK.finditer(content):
+            link = match.group(1).decode()
+            if _external(link):
+                continue
+            target = posixpath.normpath(posixpath.join(posixpath.dirname(relative), link))
+            if target not in desired:
+                errors.append(f"unresolved link in {relative}: {link}")
+        for name in foreign:
+            if f"{name}/".encode() in content:
+                errors.append(f"foreign adapter reference in {relative}: {name}")
+    return errors
 
 
 def verify_target(target_home: Path, desired: dict[str, bytes], managed: dict[str, str]) -> list[str]:
@@ -176,6 +254,9 @@ def install(runtime: str, target_home: Path, *, check: bool) -> list[str]:
     target_home = target_home.expanduser().resolve(strict=False)
     manifest_path = target_home / MANIFEST_NAME
     desired = desired_files(runtime)
+    lint_errors = lint_projection(runtime, desired)
+    if lint_errors:
+        raise InstallError("; ".join(lint_errors))
     managed = read_manifest(manifest_path, runtime)
     if check:
         errors = verify_target(target_home, desired, managed)
@@ -193,7 +274,9 @@ def install(runtime: str, target_home: Path, *, check: bool) -> list[str]:
             if not target.is_file() or target.is_symlink():
                 raise InstallError(f"target must be a regular file: {target}")
             current = digest_file(target)
-            adoptable_empty_agents = relative == "AGENTS.md" and target.stat().st_size == 0
+            adoptable_empty_agents = (
+                relative == context_file(runtime) and target.stat().st_size == 0
+            )
             if previous is None and current != wanted and not adoptable_empty_agents:
                 raise InstallError(f"refusing to overwrite unmanaged file: {target}")
             if previous is not None and current not in {previous, wanted}:

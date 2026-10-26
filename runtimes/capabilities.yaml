@@ -48,6 +48,21 @@ harnesses:
     graphicalClient: environment-dependent
     sandbox: unavailable
     collaborationEvidence: agent-hub-status-transcript-model-stop-and-typed-result
+  claude:
+    userProjection: claude
+    contextFiles: native
+    skills: native
+    sessionResume: native
+    runtimeGoal: adapter-required
+    durableOutcome: adapter-required
+    subagents: native
+    browser: environment-dependent
+    computerUse: environment-dependent
+    graphicalClient: environment-dependent
+    sandbox: environment-dependent
+    collaborationEvidence: subagent-transcript-background-task-status-and-independent-session
+    modelPolicy: user-selected-session-model; subagents-inherit; no-silent-fallback
+    projectExecution: project-native-runner-and-background-commands
 requiredProfiles:
   safe:
     allow: [read, workspace-edit, bounded-shell]
