@@ -15,9 +15,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_NAME = "team-os-install.json"
-RUNTIMES = ("codex", "pi", "omp", "claude")
-# Claude Code reads CLAUDE.md as its user-level context file.
-CONTEXT_FILES = {"claude": "CLAUDE.md"}
+RUNTIMES = ("codex", "pi", "omp", "claude", "agy")
+# Claude Code reads CLAUDE.md as its user-level context file; Antigravity (agy)
+# reads GEMINI.md from its global customization root ~/.gemini/config.
+CONTEXT_FILES = {"claude": "CLAUDE.md", "agy": "GEMINI.md"}
 COMMON_FILES = {
     "skills/team-os-plan/SKILL.md": ROOT / "skills/team-os-plan/SKILL.md",
     "skills/team-os-plan/references/capabilities.yaml": ROOT / "roles/capabilities.yaml",
@@ -103,6 +104,8 @@ def default_home(runtime: str, *, profile: str | None = None) -> Path:
         return Path(os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude"))
     if runtime == "pi":
         return Path("~/.pi/agent")
+    if runtime == "agy":
+        return Path("~/.gemini/config")
     if runtime == "omp":
         normalized = (profile or "team-os").strip()
         if normalized in {"", "default"}:

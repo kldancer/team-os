@@ -63,6 +63,21 @@ harnesses:
     collaborationEvidence: subagent-transcript-background-task-status-and-independent-session
     modelPolicy: user-selected-session-model; subagents-inherit; no-silent-fallback
     projectExecution: project-native-runner-and-background-commands
+  agy:
+    userProjection: agy
+    contextFiles: native
+    skills: native
+    sessionResume: native
+    runtimeGoal: adapter-required
+    durableOutcome: adapter-required
+    subagents: native
+    browser: environment-dependent
+    computerUse: unavailable
+    graphicalClient: environment-dependent
+    sandbox: environment-dependent
+    collaborationEvidence: agy-subagent-status-transcript-and-acp-client-panes
+    modelPolicy: user-selected-session-model-and-effort; no-silent-fallback
+    projectExecution: project-native-runner-and-background-commands
 requiredProfiles:
   safe:
     allow: [read, workspace-edit, bounded-shell]

@@ -231,6 +231,45 @@ class ClaudeProjectionTest(unittest.TestCase):
             self.assertIn("refusing to overwrite unmanaged file", result.stderr)
 
 
+class AgyProjectionTest(unittest.TestCase):
+    def run_runtime(self, home: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(RUNTIME_SCRIPT), "agy", "--home", str(home), *extra],
+            text=True, capture_output=True, check=False,
+        )
+
+    def test_agy_projection_uses_gemini_context_and_shared_skills(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "config"
+            result = self.run_runtime(home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Team OS · Antigravity", (home / "GEMINI.md").read_text())
+            self.assertFalse((home / "AGENTS.md").exists())
+            self.assertTrue((home / "skills/team-os-plan/SKILL.md").is_file())
+            self.assertFalse((home / "skills/team-os-claude").exists())
+            self.assertFalse((home / "skills/team-os-codex").exists())
+            self.assertEqual(self.run_runtime(home, "--check").returncode, 0)
+
+    def test_agy_projection_keeps_agy_config(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "config"
+            home.mkdir()
+            (home / "config.json").write_text("{}\n", encoding="utf-8")
+            (home / "mcp_config.json").write_text("{}\n", encoding="utf-8")
+            self.assertEqual(self.run_runtime(home).returncode, 0)
+            self.assertEqual((home / "config.json").read_text(encoding="utf-8"), "{}\n")
+            self.assertEqual((home / "mcp_config.json").read_text(encoding="utf-8"), "{}\n")
+
+    def test_unmanaged_agy_context_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            home = Path(raw) / "config"
+            home.mkdir()
+            (home / "GEMINI.md").write_text("mine\n", encoding="utf-8")
+            result = self.run_runtime(home)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("refusing to overwrite unmanaged file", result.stderr)
+
+
 class ProjectionLintTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
